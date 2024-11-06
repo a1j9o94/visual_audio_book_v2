@@ -1,67 +1,102 @@
 import Link from "next/link";
-
-import { LatestPost } from "~/app/_components/post";
 import { auth } from "~/server/auth";
 import { api, HydrateClient } from "~/trpc/server";
+import Image from "next/image";
+
+import type { inferRouterOutputs } from '@trpc/server';
+import type { AppRouter } from '~/server/api/root';
+
+//type RouterInput = inferRouterInputs<AppRouter>;
+type RouterOutput = inferRouterOutputs<AppRouter>;
+
+function BookList({ books }: { books: RouterOutput["book"]["getAll"] }) {
+  if (!books) return null;
+  
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      {books.map((book) => (
+        <Link
+          key={book.id}
+          href={`/books/${book.id}`}
+          className="flex flex-col gap-2 rounded-xl bg-white/10 p-4 hover:bg-white/20"
+        >
+          {book.coverImageUrl && (
+            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg">
+              <Image
+                src={book.coverImageUrl}
+                alt={book.title}
+                fill
+                className="object-cover"
+                sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
+              />
+            </div>
+          )}
+          <h3 className="text-lg font-bold">{book.title}</h3>
+          <p className="text-sm text-gray-300">by {book.author}</p>
+          <div className="mt-auto">
+            <span className="text-xs text-gray-400">
+              Status: {book.status}
+            </span>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}
 
 export default async function Home() {
-  const hello = await api.post.hello({ text: "from tRPC" });
   const session = await auth();
+  const books = await api.book.getAll();
 
-  if (session?.user) {
-    void api.post.getLatest.prefetch();
-  }
+  if (!books) return null;
 
   return (
     <HydrateClient>
-      <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16">
-          <h1 className="text-5xl font-extrabold tracking-tight sm:text-[5rem]">
-            Create <span className="text-[hsl(280,100%,70%)]">T3</span> App
-          </h1>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-8">
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/usage/first-steps"
-              target="_blank"
-            >
-              <h3 className="text-2xl font-bold">First Steps →</h3>
-              <div className="text-lg">
-                Just the basics - Everything you need to know to set up your
-                database and authentication.
-              </div>
-            </Link>
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/introduction"
-              target="_blank"
-            >
-              <h3 className="text-2xl font-bold">Documentation →</h3>
-              <div className="text-lg">
-                Learn more about Create T3 App, the libraries it uses, and how
-                to deploy it.
-              </div>
-            </Link>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-2xl text-white">
-              {hello ? hello.greeting : "Loading tRPC query..."}
-            </p>
-
-            <div className="flex flex-col items-center justify-center gap-4">
-              <p className="text-center text-2xl text-white">
-                {session && <span>Logged in as {session.user?.name}</span>}
-              </p>
-              <Link
-                href={session ? "/api/auth/signout" : "/api/auth/signin"}
-                className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
-              >
-                {session ? "Sign out" : "Sign in"}
-              </Link>
+      <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
+        <div className="container mx-auto px-4 py-16">
+          <div className="mb-12 flex items-center justify-between">
+            <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+              Visual Audio Books
+            </h1>
+            <div className="flex items-center gap-4">
+              {session ? (
+                <>
+                  <span className="text-sm">
+                    Signed in as {session.user?.name}
+                  </span>
+                  <Link
+                    href="/api/auth/signout"
+                    className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold no-underline transition hover:bg-white/20"
+                  >
+                    Sign out
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/api/auth/signin"
+                  className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold no-underline transition hover:bg-white/20"
+                >
+                  Sign in
+                </Link>
+              )}
             </div>
           </div>
 
-          {session?.user && <LatestPost />}
+          {books.length > 0 ? (
+            <BookList books={books} />
+          ) : (
+            <div className="text-center">
+              <p className="text-xl text-gray-400">No books available yet.</p>
+              {session && (
+                <Link
+                  href="/books/new"
+                  className="mt-4 inline-block rounded-full bg-white/10 px-6 py-3 font-semibold no-underline transition hover:bg-white/20"
+                >
+                  Add a New Book
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </main>
     </HydrateClient>
