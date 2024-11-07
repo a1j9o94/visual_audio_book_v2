@@ -62,7 +62,7 @@ graph TB
     %% Storage Connections
     CDN --> Assets
 ```
-```erDiagram
+```mermaid
     erDiagram
     Books ||--o{ Sequences : contains
     Books ||--o{ Characters : has
