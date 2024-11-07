@@ -56,7 +56,7 @@ export const sequences = createTable("sequence", {
 // Media and metadata tables
 export const sequenceMedia = createTable("sequence_media", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }),
+  sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }).unique(),
   audioUrl: text("audio_url"),
   imageUrl: text("image_url"),
   audioDuration: int("audio_duration"),

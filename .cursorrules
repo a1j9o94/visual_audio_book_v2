@@ -85,3 +85,22 @@ const getReadingHistory = async (userId: string) => {
     orderBy: desc(userSequenceHistory.viewedAt)
   });
 };
+
+Never change the uploadthing token in the .env file the security has been updated to use the token in the server environment.
+Setting up your environment
+Install the packages
+npm
+pnpm
+yarn
+bun
+npm install uploadthing @uploadthing/react
+
+Copy
+Copied!
+Add env variables
+.env
+UPLOADTHING_TOKEN=... # A token for interacting with the SDK
+
+Copy
+Copied!
+If you don't already have a uploadthing secret key, sign up ↗ and create one from the dashboard! ↗
