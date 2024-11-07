@@ -1,9 +1,9 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "pnpm install && pnpm build"
+buildCommand = "npm install && npm build"
 
 [deploy]
-startCommand = "pnpm start"
+startCommand = "npm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
@@ -27,7 +27,7 @@ envVars = [
 
 [[services]]
 name = "worker"
-startCommand = "pnpm worker:start"
+startCommand = "npm worker:start"
 envVars = [
   "DATABASE_URL",
   "REDIS_URL",
