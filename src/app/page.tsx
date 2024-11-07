@@ -13,33 +13,9 @@ export default async function Home() {
     <HydrateClient>
       <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
         <div className="container mx-auto px-4 py-16">
-          <div className="mb-12 flex items-center justify-between">
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-              Visual Audio Books
-            </h1>
-            <div className="flex items-center gap-4">
-              {session ? (
-                <>
-                  <span className="text-sm">
-                    Signed in as {session.user?.name}
-                  </span>
-                  <Link
-                    href="/api/auth/signout"
-                    className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold no-underline transition hover:bg-white/20"
-                  >
-                    Sign out
-                  </Link>
-                </>
-              ) : (
-                <Link
-                  href="/api/auth/signin"
-                  className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold no-underline transition hover:bg-white/20"
-                >
-                  Sign in
-                </Link>
-              )}
-            </div>
-          </div>
+          <h1 className="mb-12 text-4xl font-extrabold tracking-tight sm:text-5xl">
+            Welcome to Visual Audio Books
+          </h1>
 
           {books.length > 0 ? (
             <BookList books={books} />
