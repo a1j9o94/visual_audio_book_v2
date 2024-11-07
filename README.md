@@ -1,29 +1,53 @@
-# Create T3 App
+# Visual Audio Books
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+Visual Audio Books is an innovative platform that transforms public domain books into immersive audiovisual experiences. It combines AI-generated audio narration with contextually relevant images to create a unique "visual audiobook" experience, similar to a TikTok-style feed for literature.
 
-## What's next? How do I make an app with this?
+## Features
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- 📚 Access to public domain books from Project Gutenberg
+- 🎧 AI-powered text-to-speech narration
+- 🖼️ AI-generated images that match the story context
+- 📱 TikTok-style vertical scrolling interface
+- 🔖 Bookmark and track reading progress
+- 👥 Character tracking and scene analysis
+- 📊 Reading statistics and preferences
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Tech Stack
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+- **Frontend**: Next.js 14 with App Router
+- **Backend**: tRPC, Node.js
+- **Database**: PostgreSQL with Drizzle ORM
+- **Authentication**: NextAuth.js
+- **AI Services**:
+  - OpenAI API for text-to-speech
+  - Stability AI for image generation
+  - Anthropic Claude for scene analysis
+- **Job Processing**: BullMQ + Redis
+- **Storage**: UploadThing for media assets
 
-## Learn More
+## Getting Started
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+### Prerequisites
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+- Node.js 18+
+- PostgreSQL 15+
+- Redis
+- Project Gutenberg API access
+- AI service API keys (OpenAI, Stability AI, Anthropic)
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+### Environment Setup
 
-## How do I deploy this?
+Create a `.env` file in the root directory:
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/visual_audio_books"
+
+# Redis
+REDIS_URL="redis://localhost:6379"
+
+# Auth
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-here"
+DISCORD_CLIENT_ID="your-discord-client-id"
+DISCORD_CLIENT_SECRET="your-discord-client-secret"
