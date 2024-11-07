@@ -1,6 +1,7 @@
 export interface BookProcessingJob {
     bookId: string;
     gutenbergId: string;
+    numSequences: number | undefined;
   }
   
   export interface SequenceProcessingJob {

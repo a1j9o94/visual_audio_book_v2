@@ -1,140 +1,127 @@
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import {
-  index,
-  int,
-  sqliteTableCreator,
+  pgTable,
   text,
-  blob,
+  timestamp,
+  uuid,
   integer,
+  jsonb,
+  boolean,
+  index,
   primaryKey,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 import { type AdapterAccount } from "next-auth/adapters";
 
-/**
- * Multi-project schema prefix
- */
-export const createTable = sqliteTableCreator((name) => `visual_audio_book_v2_${name}`);
+const tablePrefix = 'visual_audio_book_v2_';
 
 // Core content tables
-export const books = createTable("book", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+export const books = pgTable(`${tablePrefix}book`, {
+  id: uuid("id").defaultRandom().primaryKey(),
   gutenbergId: text("gutenberg_id").unique(),
   title: text("title").notNull(),
   author: text("author").notNull(),
   coverImageUrl: text("cover_image_url"),
-  status: text("status").notNull().default("pending"),
-  metadata: blob("metadata", { mode: "json" }),
-  createdAt: int("created_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`),
-  updatedAt: int("updated_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
+  status: text("status").notNull().default('pending'),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
-export const characters = createTable("character", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  bookId: text("book_id").references(() => books.id, { onDelete: "cascade" }),
+export const characters = pgTable(`${tablePrefix}character`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookId: uuid("book_id").references(() => books.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
-  attributes: blob("attributes", { mode: "json" }),
-  firstAppearance: int("first_appearance", { mode: "timestamp" }),
-  createdAt: int("created_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
+  attributes: jsonb("attributes"),
+  firstAppearance: timestamp("first_appearance"),
+  createdAt: timestamp("created_at").defaultNow()
 });
 
-export const sequences = createTable("sequence", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  bookId: text("book_id").references(() => books.id, { onDelete: "cascade" }),
-  sequenceNumber: int("sequence_number").notNull(),
+export const sequences = pgTable(`${tablePrefix}sequence`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookId: uuid("book_id").references(() => books.id, { onDelete: "cascade" }),
+  sequenceNumber: integer("sequence_number").notNull(),
   content: text("content").notNull(),
-  startPosition: int("start_position").notNull(),
-  endPosition: int("end_position").notNull(),
-  status: text("status").notNull().default("pending"),
-  createdAt: int("created_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
+  startPosition: integer("start_position").notNull(),
+  endPosition: integer("end_position").notNull(),
+  status: text("status").notNull().default('pending'),
+  createdAt: timestamp("created_at").defaultNow()
 });
 
-// Media and metadata tables
-export const sequenceMedia = createTable("sequence_media", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }).unique(),
+export const sequenceMedia = pgTable(`${tablePrefix}sequence_media`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sequenceId: uuid("sequence_id").references(() => sequences.id, { onDelete: "cascade" }).unique(),
   audioUrl: text("audio_url"),
   imageUrl: text("image_url"),
-  audioDuration: int("audio_duration"),
-  imageMetadata: blob("image_metadata", { mode: "json" }),
-  generatedAt: int("generated_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
+  audioDuration: integer("audio_duration"),
+  imageMetadata: jsonb("image_metadata"),
+  generatedAt: timestamp("generated_at").defaultNow()
 });
 
-export const sequenceMetadata = createTable("sequence_metadata", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }),
-  sceneDescription: blob("scene_description", { mode: "json" }),
-  cameraDirections: blob("camera_directions", { mode: "json" }),
-  mood: blob("mood", { mode: "json" }),
-  lighting: blob("lighting", { mode: "json" }),
-  settings: blob("settings", { mode: "json" }),
-  aiAnnotations: blob("ai_annotations", { mode: "json" })
+export const sequenceMetadata = pgTable(`${tablePrefix}sequence_metadata`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sequenceId: uuid("sequence_id")
+    .references(() => sequences.id, { onDelete: "cascade" })
+    .unique(),
+  sceneDescription: jsonb("scene_description"),
+  cameraDirections: jsonb("camera_directions"),
+  mood: jsonb("mood"),
+  lighting: jsonb("lighting"),
+  settings: jsonb("settings"),
+  aiAnnotations: jsonb("ai_annotations")
 });
 
-// Junction tables
-export const sequenceCharacters = createTable("sequence_character", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }),
-  characterId: text("character_id").references(() => characters.id, { onDelete: "cascade" }),
+export const sequenceCharacters = pgTable(`${tablePrefix}sequence_character`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sequenceId: uuid("sequence_id").references(() => sequences.id, { onDelete: "cascade" }),
+  characterId: uuid("character_id").references(() => characters.id, { onDelete: "cascade" }),
   role: text("role"),
-  context: blob("context", { mode: "json" })
+  context: jsonb("context")
 });
 
-// User-related tables
-export const users = createTable("user", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+export const users = pgTable(`${tablePrefix}user`, {
+  id: uuid("id").defaultRandom().primaryKey(),
   name: text("name"),
   email: text("email").notNull().unique(),
-  emailVerified: int("email_verified", { mode: "timestamp" }),
+  emailVerified: timestamp("email_verified"),
   image: text("image"),
-  createdAt: int("created_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
+  createdAt: timestamp("created_at").defaultNow()
 });
 
-export const userBookProgress = createTable("user_book_progress", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-  bookId: text("book_id").references(() => books.id, { onDelete: "cascade" }),
-  lastSequenceNumber: int("last_sequence_number").notNull().default(0),
-  lastReadAt: int("last_read_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`),
-  totalTimeSpent: int("total_time_spent").default(0),
-  isComplete: int("is_complete", { mode: "boolean" }).default(0),
-  readingPreferences: blob("reading_preferences", { mode: "json" }),
-  updatedAt: int("updated_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
+export const userBookProgress = pgTable(`${tablePrefix}user_book_progress`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  bookId: uuid("book_id").references(() => books.id, { onDelete: "cascade" }),
+  lastSequenceNumber: integer("last_sequence_number").notNull().default(0),
+  lastReadAt: timestamp("last_read_at").defaultNow(),
+  totalTimeSpent: integer("total_time_spent").default(0),
+  isComplete: boolean("is_complete").default(false),
+  readingPreferences: jsonb("reading_preferences"),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
-export const userBookmarks = createTable("user_bookmark", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-  bookId: text("book_id").references(() => books.id, { onDelete: "cascade" }),
-  sequenceNumber: int("sequence_number").notNull(),
+export const userBookmarks = pgTable(`${tablePrefix}user_bookmark`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  bookId: uuid("book_id").references(() => books.id, { onDelete: "cascade" }),
+  sequenceNumber: integer("sequence_number").notNull(),
   note: text("note"),
-  createdAt: int("created_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
+  createdAt: timestamp("created_at").defaultNow()
 });
 
-export const userSequenceHistory = createTable("user_sequence_history", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-  sequenceId: text("sequence_id").references(() => sequences.id, { onDelete: "cascade" }),
-  viewedAt: int("viewed_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`),
-  timeSpent: int("time_spent").default(0),
-  completed: int("completed", { mode: "boolean" }).default(0),
-  preferences: blob("preferences", { mode: "json" })
+export const userSequenceHistory = pgTable(`${tablePrefix}user_sequence_history`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  sequenceId: uuid("sequence_id").references(() => sequences.id, { onDelete: "cascade" }),
+  viewedAt: timestamp("viewed_at").defaultNow(),
+  timeSpent: integer("time_spent").default(0),
+  completed: boolean("completed").default(false),
+  preferences: jsonb("preferences")
 });
 
-// Auth-related tables (keeping existing auth tables)
-export const accounts = createTable("account", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
+export const accounts = pgTable(`${tablePrefix}account`, {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   type: text("type").$type<AdapterAccount["type"]>().notNull(),
@@ -142,41 +129,35 @@ export const accounts = createTable("account", {
   providerAccountId: text("provider_account_id").notNull(),
   refresh_token: text("refresh_token"),
   access_token: text("access_token"),
-  expires_at: int("expires_at"),
+  expires_at: integer("expires_at"),
   token_type: text("token_type"),
   scope: text("scope"),
   id_token: text("id_token"),
-  session_state: text("session_state"),
+  session_state: text("session_state")
 }, (account) => ({
   providerProviderAccountIdIndex: index("provider_provider_account_id_idx").on(
     account.provider,
-    account.providerAccountId,
+    account.providerAccountId
   ),
-  userIdIndex: index("user_id_idx").on(account.userId),
+  userIdIndex: index("user_id_idx").on(account.userId)
 }));
 
-// Add these tables after the accounts table...
-
-export const sessions = createTable("session", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+export const sessions = pgTable(`${tablePrefix}session`, {
+  id: uuid("id").defaultRandom().primaryKey(),
   sessionToken: text("session_token").notNull().unique(),
-  userId: text("user_id")
+  userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  expires: int("expires", { mode: "timestamp" }).notNull(),
+  expires: timestamp("expires").notNull()
 });
 
-export const verificationTokens = createTable("verificationToken", {
+export const verificationTokens = pgTable(`${tablePrefix}verification_token`, {
   identifier: text("identifier").notNull(),
   token: text("token").notNull(),
-  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
-  },
-  (verificationToken) => ({
-    compositePk: primaryKey({
-      columns: [verificationToken.identifier, verificationToken.token],
-    }),
-  })
-)
+  expires: timestamp("expires").notNull(),
+}, (vt) => ({
+  compoundKey: primaryKey({ columns: [vt.identifier, vt.token] })
+}));
 
 // Relations
 export const booksRelations = relations(books, ({ many }) => ({
@@ -202,7 +183,6 @@ export const usersRelations = relations(users, ({ many }) => ({
   sequenceHistory: many(userSequenceHistory),
 }));
 
-// Add these relations
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, { fields: [sessions.userId], references: [users.id] }),
 }));

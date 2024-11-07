@@ -15,6 +15,13 @@
       "when": 1730941532895,
       "tag": "0001_outstanding_the_liberteens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1730948280165,
+      "tag": "0002_equal_whizzer",
+      "breakpoints": true
     }
   ]
 }
