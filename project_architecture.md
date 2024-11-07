@@ -13,12 +13,12 @@ graph TB
     end
 
     subgraph DB["Database Layer"]
-        SQLite[(SQLite + Drizzle ORM)]
+        Postgres[(PostgreSQL + Drizzle ORM)]
         Cache["Redis Cache"]
     end
 
     subgraph Queue["Job Queue"]
-        Bull["Bull Queue"]
+        Bull["BullMQ"]
         Workers["Background Workers"]
     end
 
@@ -41,7 +41,7 @@ graph TB
     Player --> MediaAPI
 
     %% API Layer Connections
-    BookAPI --> SQLite
+    BookAPI --> Postgres
     BookAPI --> Cache
     ProcessingAPI --> Bull
     MediaAPI --> CDN
@@ -76,70 +76,74 @@ graph TB
     Sequences ||--|| SequenceMetadata : has
     Sequences ||--o{ UserSequenceHistory : tracked_by
     Users ||--o{ UserSequenceHistory : tracks
+    Users ||--o{ Accounts : has
+    Users ||--o{ Sessions : has
 
     Books {
-        string id PK
+        uuid id PK
         string gutenbergId UK
         string title
         string author
         string coverImageUrl
         string status
-        json metadata
+        jsonb metadata
         timestamp createdAt
         timestamp updatedAt
     }
 
     Users {
-        string id PK
+        uuid id PK
         string email UK
         string name
+        timestamp emailVerified
+        string image
         timestamp createdAt
     }
 
     UserBookProgress {
-        string id PK
-        string userId FK
-        string bookId FK
+        uuid id PK
+        uuid userId FK
+        uuid bookId FK
         integer lastSequenceNumber
         timestamp lastReadAt
         integer totalTimeSpent
         boolean isComplete
-        json readingPreferences
+        jsonb readingPreferences
         timestamp updatedAt
     }
 
     UserBookmarks {
-        string id PK
-        string userId FK
-        string bookId FK
+        uuid id PK
+        uuid userId FK
+        uuid bookId FK
         integer sequenceNumber
         string note
         timestamp createdAt
     }
 
     UserSequenceHistory {
-        string id PK
-        string userId FK
-        string sequenceId FK
+        uuid id PK
+        uuid userId FK
+        uuid sequenceId FK
         timestamp viewedAt
         integer timeSpent
         boolean completed
-        json preferences
+        jsonb preferences
     }
 
     Characters {
-        string id PK
-        string bookId FK
+        uuid id PK
+        uuid bookId FK
         string name
         text description
-        json attributes
+        jsonb attributes
         timestamp firstAppearance
         timestamp createdAt
     }
 
     Sequences {
-        string id PK
-        string bookId FK
+        uuid id PK
+        uuid bookId FK
         integer sequenceNumber
         text content
         integer startPosition
@@ -149,31 +153,53 @@ graph TB
     }
 
     SequenceCharacters {
-        string id PK
-        string sequenceId FK
-        string characterId FK
+        uuid id PK
+        uuid sequenceId FK
+        uuid characterId FK
         string role
-        json context
+        jsonb context
     }
 
     SequenceMedia {
-        string id PK
-        string sequenceId FK
+        uuid id PK
+        uuid sequenceId FK UK
         string audioUrl
         string imageUrl
         integer audioDuration
-        json imageMetadata
+        jsonb imageMetadata
         timestamp generatedAt
     }
 
     SequenceMetadata {
-        string id PK
-        string sequenceId FK
-        json sceneDescription
-        json cameraDirections
-        json mood
-        json lighting
-        json settings
-        json aiAnnotations
+        uuid id PK
+        uuid sequenceId FK UK
+        jsonb sceneDescription
+        jsonb cameraDirections
+        jsonb mood
+        jsonb lighting
+        jsonb settings
+        jsonb aiAnnotations
+    }
+
+    Accounts {
+        uuid id PK
+        uuid userId FK
+        string type
+        string provider
+        string providerAccountId
+        string refreshToken
+        string accessToken
+        integer expiresAt
+        string tokenType
+        string scope
+        string idToken
+        string sessionState
+    }
+
+    Sessions {
+        uuid id PK
+        string sessionToken UK
+        uuid userId FK
+        timestamp expires
     }
 ```
