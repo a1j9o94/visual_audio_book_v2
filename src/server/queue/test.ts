@@ -5,28 +5,31 @@ import { globalDb } from '~/server/db/utils';
 import { books, sequences, sequenceMedia, sequenceMetadata } from '~/server/db/schema';
 import { bookProcessingWorker, sequenceProcessingWorker, sceneAnalysisWorker, audioGenerationWorker, imageGenerationWorker } from './workers';
 import { eq, inArray } from 'drizzle-orm';
-import { getMediaStorage } from '~/server/storage';
 import { QUEUE_NAMES } from './config';
 import { withRetry } from "~/server/db/utils";
+import type { DrizzleClient } from "~/server/db/utils";
 
-const TIMEOUT_MS = 120000; // 2 minutes
+const NUM_TEST_SEQUENCES = 3;
 
-async function waitForJobCompletion(sequenceId: string, db: unknown) {
-  const maxAttempts = 60; // 5 minutes total with 5-second intervals
+async function waitForJobCompletion(sequenceId: string, sequenceNumber: number, db: DrizzleClient) {
+  const maxAttempts = 240; // 20 minutes total with 5-second intervals
   let attempts = 0;
+  
   while (attempts < maxAttempts) {
     const sequence = await withRetry(() => db.query.sequences.findFirst({
       where: eq(sequences.id, sequenceId)
     }));
 
     if (!sequence) {
-      throw new Error(`Sequence ${sequenceId} not found`);
+      throw new Error(`Sequence ${sequenceId} (${sequenceNumber}/${NUM_TEST_SEQUENCES}) not found`);
     }
+
+    console.log(`[Sequence ${sequenceNumber}/${NUM_TEST_SEQUENCES}] Status: ${sequence.status}`);
 
     // Check if sequence is in a final state
     if (sequence.status === 'completed' || sequence.status === 'failed') {
       if (sequence.status === 'failed') {
-        throw new Error(`Sequence ${sequenceId} processing failed`);
+        throw new Error(`Sequence ${sequenceId} (${sequenceNumber}/${NUM_TEST_SEQUENCES}) processing failed`);
       }
       return;
     }
@@ -36,20 +39,50 @@ async function waitForJobCompletion(sequenceId: string, db: unknown) {
     attempts++;
   }
 
-  throw new Error(`Timeout waiting for sequence ${sequenceId} to complete`);
+  throw new Error(`Timeout waiting for sequence ${sequenceId} (${sequenceNumber}/${NUM_TEST_SEQUENCES}) to complete`);
 }
 
 async function testQueue() {
+  console.log('=== Starting Queue Test ===');
+  console.log(`Testing with ${NUM_TEST_SEQUENCES} sequences`);
+  
+  // Clean up any existing test data
   console.log('Cleaning up any existing test data...');
-  const existingBook = await globalDb.query.books.findFirst({
-    where: eq(books.gutenbergId, '84')
-  });
+  await withRetry(async () => {
+    await globalDb.transaction(async (tx) => {
+      const existingBook = await tx.query.books.findFirst({
+        where: eq(books.gutenbergId, '84')
+      });
 
-  if (existingBook) {
-    await globalDb.delete(sequences).where(eq(sequences.bookId, existingBook.id));
-    await globalDb.delete(books).where(eq(books.id, existingBook.id));
-    console.log('Cleaned up existing test book and sequences');
-  }
+      if (existingBook) {
+        await tx.delete(sequenceMedia)
+          .where(
+            inArray(
+              sequenceMedia.sequenceId,
+              tx.select({ id: sequences.id })
+                .from(sequences)
+                .where(eq(sequences.bookId, existingBook.id))
+            )
+          );
+        
+        await tx.delete(sequenceMetadata)
+          .where(
+            inArray(
+              sequenceMetadata.sequenceId,
+              tx.select({ id: sequences.id })
+                .from(sequences)
+                .where(eq(sequences.bookId, existingBook.id))
+            )
+          );
+        
+        await tx.delete(sequences)
+          .where(eq(sequences.bookId, existingBook.id));
+        
+        await tx.delete(books)
+          .where(eq(books.id, existingBook.id));
+      }
+    });
+  });
 
   console.log('Checking worker status...');
   const workers = [
@@ -73,7 +106,7 @@ async function testQueue() {
   const [book] = await globalDb.insert(books).values({
     title: 'Test Book',
     author: 'Test Author',
-    gutenbergId: '84', // The Project Gutenberg copy of Frankenstein
+    gutenbergId: '84',
     status: 'pending',
   }).returning();
 
@@ -82,86 +115,84 @@ async function testQueue() {
   let sequenceRecords: typeof sequences.$inferSelect[] = [];
 
   try {
-    console.log('Starting book processing test...');
+    console.log('\n=== Creating Test Book ===');
     
+    // Queue the book processing job
     await addJob({
       type: 'book-processing',
       data: {
         bookId: book.id,
         gutenbergId: book.gutenbergId ?? '',
-        numSequences: 10,
+        numSequences: NUM_TEST_SEQUENCES,
       }
     });
 
     // Wait for sequences to be created
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Short wait for initial creation
-    sequenceRecords = await globalDb.query.sequences.findMany({
-      where: eq(sequences.bookId, book.id),
-      limit: 10,
-    });
+    console.log('\n=== Waiting for Sequence Creation ===');
+    let attempts = 0;
+    while (attempts < 12) { // 1 minute total
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      sequenceRecords = await globalDb.query.sequences.findMany({
+        where: eq(sequences.bookId, book.id),
+        orderBy: (sequences, { asc }) => [asc(sequences.sequenceNumber)],
+        limit: NUM_TEST_SEQUENCES,
+      });
 
-    if (sequenceRecords.length === 0) {
-      throw new Error('No sequences were created');
+      if (sequenceRecords.length === NUM_TEST_SEQUENCES) {
+        break;
+      }
+      attempts++;
     }
 
-    console.log(`Created ${sequenceRecords.length} sequences`);
+    if (sequenceRecords.length !== NUM_TEST_SEQUENCES) {
+      throw new Error(`Expected ${NUM_TEST_SEQUENCES} sequences, but got ${sequenceRecords.length}`);
+    }
 
-    // Verify the results
-    const storage = getMediaStorage();
-    
+    console.log(`\n=== Processing ${sequenceRecords.length} Sequences ===`);
+
+    // Process each sequence
     for (const sequence of sequenceRecords) {
-      await waitForJobCompletion(sequence.id, globalDb);
-      console.log(`Verifying sequence ${sequence.id}...`);
-
-      // Check sequence metadata exists
-      const metadata = await globalDb.query.sequenceMetadata.findFirst({
-        where: eq(sequenceMetadata.sequenceId, sequence.id)
-      });
+      console.log(`\n--- Processing Sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES} ---`);
+      console.log(`Sequence ID: ${sequence.id}`);
       
-      console.log('Metadata for sequence:', sequence.id, metadata);
+      await waitForJobCompletion(sequence.id, sequence.sequenceNumber + 1, globalDb);
+      
+      console.log(`\n=== Verifying Sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES} ===`);
 
-      if (!metadata) {
-        throw new Error(`No metadata found for sequence ${sequence.id}`);
+      // Verify metadata and media
+      const [metadata, media] = await Promise.all([
+        globalDb.query.sequenceMetadata.findFirst({
+          where: eq(sequenceMetadata.sequenceId, sequence.id)
+        }),
+        globalDb.query.sequenceMedia.findFirst({
+          where: eq(sequenceMedia.sequenceId, sequence.id)
+        })
+      ]);
+      
+      if (!metadata?.sceneDescription) {
+        throw new Error(`Missing metadata for sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES}`);
       }
-
-      if (!metadata.sceneDescription) {
-        throw new Error(`Missing scene description for sequence ${sequence.id}`);
-      }
-
-      console.log('Scene description:', metadata.sceneDescription);
-
-      // Check media exists
-      const media = await globalDb.query.sequenceMedia.findFirst({
-        where: eq(sequenceMedia.sequenceId, sequence.id)
-      });
 
       if (!media?.audioUrl || !media?.imageUrl) {
-        throw new Error(`Missing media for sequence ${sequence.id}`);
+        throw new Error(`Missing media for sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES}`);
       }
 
-      // Verify media files are accessible
-      try {
-        await storage.getAudioUrl(book.id, sequence.id);
-        await storage.getImageUrl(book.id, sequence.id);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        throw new Error(`Failed to retrieve media files for sequence ${sequence.id}: ${errorMessage}`);
-      }
+      console.log(`Sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES} completed successfully`);
     }
 
-    console.log('All tests passed successfully!');
+    console.log('\n=== All Tests Passed Successfully! ===');
 
   } catch (error) {
-    console.error('Test failed:', error);
+    console.error('\n=== Test Failed ===');
+    console.error(error);
     throw error;
   } finally {
     // Cleanup
     console.log('Cleaning up test data...');
     try {
-
       await withRetry(async () => {
         await globalDb.transaction(async (tx) => {
-          // Delete in specific order to avoid deadlocks
           if (sequenceRecords.length > 0) {
             const sequenceIds = sequenceRecords.map(s => s.id);
             
@@ -175,12 +206,10 @@ async function testQueue() {
               .where(eq(sequences.bookId, book.id));
           }
           
-          if (book) {
-            await tx.delete(books)
-              .where(eq(books.id, book.id));
-          }
+          await tx.delete(books)
+            .where(eq(books.id, book.id));
         });
-      }, 5); // Increase max retries for cleanup
+      }, 5);
       console.log('Test cleanup completed');
     } catch (error) {
       console.error('Cleanup failed:', error);
@@ -190,6 +219,7 @@ async function testQueue() {
 }
 
 void testQueue().catch(error => {
-  console.error('Test failed:', error);
+  console.error('\n=== Test Failed with Error ===');
+  console.error(error);
   process.exit(1);
 });

@@ -6,8 +6,6 @@ import { eq } from "drizzle-orm";
 import { Anthropic } from '@anthropic-ai/sdk';
 import { withRetry } from "~/server/db/utils";
 import { createDb, closeDb } from "~/server/db/utils";
-import { updateSequenceStatus } from "~/server/queue/workers/sequence-status-manager";
-import type { DrizzleClient } from "~/server/db/utils";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY ?? '',
@@ -64,24 +62,18 @@ export const sceneAnalysisWorker = new Worker<SceneAnalysisJob>(
   async (job) => {
     const db = createDb();
     
-    console.log(`Scene analysis worker received job for sequence ${job.data.sequenceId}`);
-    
     try {
+      // Update status to processing
+      await withRetry(() =>
+        db.update(sequences)
+          .set({ status: 'processing' })
+          .where(eq(sequences.id, job.data.sequenceId))
+      );
+
       let sceneDescription: string = '';
 
       // Use a transaction for atomic operations
       await db.transaction(async (tx) => {
-        // Update sequence status
-        const sequence = await tx.update(sequences)
-          .set({ status: 'processing' as const })
-          .where(eq(sequences.id, job.data.sequenceId))
-          .returning()
-          .execute();
-
-        if (!sequence.length) {
-          throw new Error(`Sequence ${job.data.sequenceId} not found`);
-        }
-
         // Perform scene analysis
         const analysis = await analyzeScene(job.data.content);
         sceneDescription = analysis.sceneDescription;
@@ -100,9 +92,6 @@ export const sceneAnalysisWorker = new Worker<SceneAnalysisJob>(
             }
           })
           .execute();
-
-        // Update sequence status using db instead of tx
-        await updateSequenceStatus(db, job.data.sequenceId, 'processing-image');
       });
 
       // Queue image generation outside transaction
@@ -114,27 +103,28 @@ export const sceneAnalysisWorker = new Worker<SceneAnalysisJob>(
         },
       });
 
+      // Update to processing-image status
+      await withRetry(() =>
+        db.update(sequences)
+          .set({ status: 'processing-image' })
+          .where(eq(sequences.id, job.data.sequenceId))
+      );
+
       return {
         sequenceId: job.data.sequenceId,
         sceneDescription
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error in ${QUEUE_NAMES.SCENE_ANALYSIS} for sequence ${job.data.sequenceId}:`, {
-        error: errorMessage,
-        jobData: job.data,
-        timestamp: new Date().toISOString()
-      });
-      
+      // Update failed status directly
       await withRetry(() =>
         db.update(sequences)
-          .set({ status: 'failed' as const })
+          .set({ status: 'failed' })
           .where(eq(sequences.id, job.data.sequenceId))
       );
       
-      throw new Error(errorMessage);
+      throw error;
     } finally {
-      await closeDb(db);
+      await closeDb(db);  // Add this to properly close the database connection
     }
   },
   queueOptions

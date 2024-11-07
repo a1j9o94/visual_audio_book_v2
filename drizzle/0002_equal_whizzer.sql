@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX `visual_audio_book_v2_sequence_metadata_sequence_id_unique` ON `visual_audio_book_v2_sequence_metadata` (`sequence_id`);

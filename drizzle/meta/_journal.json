@@ -1,26 +1,12 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1730926176864,
-      "tag": "0000_careless_mephisto",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1730941532895,
-      "tag": "0001_outstanding_the_liberteens",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1730948280165,
-      "tag": "0002_equal_whizzer",
+      "version": "7",
+      "when": 1730963946370,
+      "tag": "0000_pink_tarot",
       "breakpoints": true
     }
   ]
