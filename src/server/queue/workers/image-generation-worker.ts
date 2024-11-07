@@ -6,12 +6,14 @@ import { eq } from "drizzle-orm";
 import axios from "axios";
 import { getMediaStorage } from "~/server/storage";
 import FormData from "form-data";
-import { createDb } from "~/server/db/utils";
-import { updateSequenceStatus } from "./sequence-status-manager";
+import { createDb, closeDb } from "~/server/db/utils";
+import { withRetry } from "~/server/db/utils";
 
 interface ImageGenerationJob {
   sequenceId: string;
   sceneDescription: string;
+  sequenceNumber: number;
+  totalSequences: number;
 }
 
 async function generateImage(prompt: string, retryCount = 0): Promise<Buffer> {
@@ -61,7 +63,7 @@ async function generateImage(prompt: string, retryCount = 0): Promise<Buffer> {
 export const imageGenerationWorker = new Worker<ImageGenerationJob>(
   QUEUE_NAMES.IMAGE_GENERATION,
   async (job) => {
-    const { sequenceId, sceneDescription } = job.data;
+    const { sequenceId, sceneDescription, sequenceNumber, totalSequences } = job.data;
     const db = createDb();
     
     try {
@@ -76,17 +78,15 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
       }
 
       // Generate the image
-      console.log(`Starting image generation for sequence ${sequenceId}`);
+      console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Starting image generation`);
       const imageBuffer = await generateImage(sceneDescription);
-
-      // After image generation, before saving
-      console.log(`Image generated for sequence ${sequenceId}, buffer size: ${imageBuffer.length}`);
+      console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image generated, buffer size: ${imageBuffer.length}`);
 
       // Save the image file
       const storage = getMediaStorage();
       const imageUrl = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
 
-      // Save the image URL in sequenceMedia
+      // Save the image URL
       await withRetry(() =>
         db.insert(sequenceMedia)
           .values({
@@ -103,35 +103,35 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
           })
       );
 
-      // Update sequence status
-      await updateSequenceStatus(db, sequenceId, 'image-complete');
+      // First mark image as complete
+      await withRetry(() =>
+        db.update(sequences)
+          .set({ status: 'image-complete' })
+          .where(eq(sequences.id, sequenceId))
+      );
 
-      // Check if audio is also complete
-      const updatedSequence = await db.query.sequences.findFirst({
-        where: eq(sequences.id, sequenceId)
+      // Check if audio is also complete by checking sequenceMedia
+      const media = await db.query.sequenceMedia.findFirst({
+        where: eq(sequenceMedia.sequenceId, sequenceId)
       });
 
-      if (updatedSequence?.status === 'audio-complete') {
-        await updateSequenceStatus(db, sequenceId, 'completed');
+      if (media?.audioUrl) {
+        console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Both audio and image complete, marking as completed`);
+        await withRetry(() =>
+          db.update(sequences)
+            .set({ status: 'completed' })
+            .where(eq(sequences.id, sequenceId))
+        );
       }
 
-      console.log(`Image generation for sequence ${sequenceId} completed`);
-
-      return {
-        sequenceId,
-        imageUrl
-      };
+      return { sequenceId, imageUrl };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error in ${QUEUE_NAMES.IMAGE_GENERATION} for sequence ${sequenceId}:`, {
-        error: errorMessage,
-        jobData: job.data,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Update sequence status to failed
-      await updateSequenceStatus(db, sequenceId, 'failed');
-      
+      console.error(`[Sequence ${sequenceNumber}/${totalSequences}] Error:`, error);
+      await withRetry(() =>
+        db.update(sequences)
+          .set({ status: 'failed' })
+          .where(eq(sequences.id, sequenceId))
+      );
       throw error;
     } finally {
       await closeDb(db);

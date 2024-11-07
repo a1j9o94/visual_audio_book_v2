@@ -1,61 +1,59 @@
+import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { drizzle } from "drizzle-orm/postgres-js";
-import { env } from "~/env";
-import * as schema from "./schema";
+import * as schema from './schema';
 
-async function wait(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+export type DrizzleClient = ReturnType<typeof drizzle<typeof schema>>;
+
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL is not defined');
 }
 
-export async function withRetry<T>(
-  operation: () => Promise<T>,
-  maxRetries = 3,
-  baseDelay = 100
-): Promise<T> {
-  let lastError: Error | undefined;
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error as Error;
-      
-      if (error instanceof postgres.PostgresError && 
-          ['40001', '40P01'].includes((error).code)) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        console.log(`Database conflict, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
-        await wait(delay);
-        continue;
-      }
-      
-      throw error;
-    }
-  }
-  
-  throw lastError!;
-}
+const DEFAULT_PG_CONFIG = {
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  statement_timeout: 30000,
+  idle_in_transaction_session_timeout: 30000,
+} as const;
 
-// Create a single shared pool
-const globalPool = postgres(env.DATABASE_URL, { 
-  max: 10, // Increase max connections but keep it reasonable
-  idle_timeout: 20, // Close idle connections after 20 seconds
-  connect_timeout: 10, // Connection timeout after 10 seconds
-});
+// Create the SQL client
+const sql = postgres(process.env.DATABASE_URL, DEFAULT_PG_CONFIG);
 
-export const globalDb = drizzle(globalPool, { schema });
+// Create the global database instance
+export const globalDb = drizzle(sql, { schema });
 
 // For workers that need their own connection
 export function createDb() {
-  const client = postgres(env.DATABASE_URL, { 
-    max: 1,
-    idle_timeout: 20,
-  });
-  return drizzle(client, { schema });
+  const sql = postgres(process.env.DATABASE_URL, DEFAULT_PG_CONFIG);
+  return drizzle(sql, { schema });
 }
 
-export type DrizzleClient = ReturnType<typeof createDb>;
-
+// Helper to close a database connection
 export async function closeDb(db: DrizzleClient) {
   // @ts-expect-error - internal property access
-  await db.session?.end();
+  await db.$query.client.end();
+}
+
+// Retry helper with exponential backoff
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelay = 100
+): Promise<T> {
+  let lastError: unknown;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => 
+          setTimeout(resolve, baseDelay * Math.pow(2, i))
+        );
+      }
+    }
+  }
+  
+  throw lastError;
 }

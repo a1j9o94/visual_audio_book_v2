@@ -2,16 +2,18 @@ import { Worker } from "bullmq";
 import { queueOptions, QUEUE_NAMES } from "../config";
 import { OpenAI, APIError } from 'openai';
 import { getMediaStorage } from "~/server/storage";
-import { sequences } from "~/server/db/schema";
+import { sequences, sequenceMedia } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
-import { createDb } from "~/server/db/utils";
-import { updateSequenceStatus } from "~/server/queue/workers/sequence-status-manager";
+import { createDb, closeDb } from "~/server/db/utils";
+import { withRetry } from "~/server/db/utils";
 
 const openai = new OpenAI();
 
 interface AudioGenerationJob {
   sequenceId: string;
   text: string;
+  sequenceNumber: number;
+  totalSequences: number;
 }
 
 async function createSpeech(text: string, retryCount = 0): Promise<Response> {
@@ -34,11 +36,10 @@ async function createSpeech(text: string, retryCount = 0): Promise<Response> {
 export const audioGenerationWorker = new Worker<AudioGenerationJob>(
   QUEUE_NAMES.AUDIO_GENERATION,
   async (job) => {
-    const { sequenceId, text } = job.data;
+    const { sequenceId, text, sequenceNumber, totalSequences } = job.data;
+    const db = createDb();
     
     try {
-      const db = createDb();
-
       // Get the sequence to find its book ID
       const sequence = await db.query.sequences.findFirst({
         where: eq(sequences.id, sequenceId),
@@ -50,45 +51,69 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
       }
 
       // Generate the audio using OpenAI
-      console.log("Generating audio for sequence", sequenceId);
+      console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Generating audio`);
       console.log(`Creating speech for sequence ${sequenceId}, text length: ${text.length}`);
       const mp3: Response = await createSpeech(text);
-      console.log(`Speech generated for sequence ${sequenceId}, converting to buffer`);
+      console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Speech generated, converting to buffer`);
       const buffer = Buffer.from(await mp3.arrayBuffer());
 
       // Save the audio file using the storage system
       const storage = getMediaStorage();
       const audioUrl = await storage.saveAudio(sequence.bookId, sequenceId, buffer);
-      console.log(`Audio saved for sequence ${sequenceId}: ${audioUrl}`);
+      console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Audio saved: ${audioUrl}`);
 
-      // Update sequence status
-      await updateSequenceStatus(db, sequenceId, 'audio-complete');
+      // Update sequence media with audio URL
+      await withRetry(() => 
+        db.insert(sequenceMedia)
+          .values({
+            sequenceId,
+            audioUrl,
+            generatedAt: new Date()
+          })
+          .onConflictDoUpdate({
+            target: sequenceMedia.sequenceId,
+            set: {
+              audioUrl,
+              generatedAt: new Date()
+            }
+          })
+      );
 
-      // Check if image is also complete
-      const updatedSequence = await db.query.sequences.findFirst({
-        where: eq(sequences.id, sequenceId)
+      // First mark audio as complete
+      await withRetry(() => 
+        db.update(sequences)
+          .set({ status: 'audio-complete' })
+          .where(eq(sequences.id, sequenceId))
+      );
+
+      // Check if image is also complete by checking sequenceMedia
+      const media = await db.query.sequenceMedia.findFirst({
+        where: eq(sequenceMedia.sequenceId, sequenceId)
       });
 
-      if (updatedSequence?.status === 'image-complete') {
-        await updateSequenceStatus(db, sequenceId, 'completed');
+      if (media?.imageUrl) {
+        console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Both audio and image complete, marking as completed`);
+        await withRetry(() =>
+          db.update(sequences)
+            .set({ status: 'completed' })
+            .where(eq(sequences.id, sequenceId))
+        );
       }
 
       return {
         sequenceId,
         audioUrl
       };
-    } catch (error: any) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error in ${QUEUE_NAMES.AUDIO_GENERATION} for sequence ${sequenceId}:`, {
-        error: errorMessage,
-        jobData: job.data,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Update sequence status to failed
-      await updateSequenceStatus(db, sequenceId, 'failed');
-      
+    } catch (error) {
+      console.error(`[Sequence ${sequenceNumber}/${totalSequences}] Error:`, error);
+      await withRetry(() =>
+        db.update(sequences)
+          .set({ status: 'failed' })
+          .where(eq(sequences.id, sequenceId))
+      );
       throw error;
+    } finally {
+      await closeDb(db);
     }
   },
   queueOptions

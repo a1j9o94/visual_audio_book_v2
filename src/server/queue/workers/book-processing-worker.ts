@@ -6,6 +6,7 @@ import { addJob } from "../queues";
 import { eq } from "drizzle-orm";
 import axios from "axios";
 import { withRetry } from "~/server/db/utils";
+
 interface BookProcessingJob {
   bookId: string;
   gutenbergId: string;
@@ -45,47 +46,38 @@ export const bookProcessingWorker = new Worker<BookProcessingJob>(
       throw new Error('Retrieved book content is empty');
     }
 
-    console.log(`Fetched book content for ${gutenbergId}, length: ${bookContent.length} characters`);
-
     // Split into sequences
-    const sequenceLength = 200; // words
+    const sequenceLength = 50; // words
     const words: string[] = bookContent.split(/\s+/).filter(word => word.length > 0);
-    console.log('Total words found:', words.length);
+    console.log(`Total words found: ${words.length}, requested sequences: ${numSequences}`);
+
+    const maxPossibleSequences = Math.floor(words.length / sequenceLength);
+    const actualLimit = Math.min(numSequences ?? maxPossibleSequences, maxPossibleSequences);
+    
+    console.log(`Will create ${actualLimit} sequences (max possible: ${maxPossibleSequences})`);
 
     const sequencesData: SequenceData[] = [];
-
-    for (let i = 0; i < words.length; i += sequenceLength) {
-      const sequenceWords = words.slice(i, i + sequenceLength);
+    for (let i = 0; i < actualLimit; i++) {
+      const start = i * sequenceLength;
+      const end = (i + 1) * sequenceLength;
+      const sequenceWords = words.slice(start, end);
       sequencesData.push({
         content: sequenceWords.join(' '),
-        startPosition: i,
-        endPosition: i + sequenceWords.length,
+        startPosition: start,
+        endPosition: start + sequenceWords.length,
       });
     }
 
-    console.log(`Created ${sequencesData.length} sequences from book content`);
-
-    // Create sequences in database and queue for processing
-    const limit = numSequences ?? sequencesData.length;
-    console.log(`Will process ${limit} sequences`);
+    console.log(`Created ${sequencesData.length} sequence chunks`);
     
-    // Before the loop
-    console.log('Debug - Processing parameters:', {
-      limit,
-      totalSequences: sequencesData.length,
-      firstSequenceContent: sequencesData[0]?.content.substring(0, 100)
-    });
-
     const db = createDb();
 
-    for (let i = 0; i < limit; i++) {
-      const sequence = sequencesData[i];
-      if (!sequence) {
-        console.warn(`No sequence data found for index ${i}`);
-        continue;
-      }
-
-      try {
+    try {
+      // Create sequences in database and queue for processing
+      for (let i = 0; i < sequencesData.length; i++) {
+        const sequence = sequencesData[i];
+        console.log(`Processing sequence ${i + 1}/${actualLimit}`);
+        
         const [sequenceRecord] = await db.insert(sequences).values({
           bookId,
           sequenceNumber: i,
@@ -95,12 +87,12 @@ export const bookProcessingWorker = new Worker<BookProcessingJob>(
           status: 'pending',
         }).returning();
 
-        console.log(`Created sequence ${i + 1}/${limit}, ID: ${sequenceRecord?.id}`);
-
         if (!sequenceRecord) {
           console.error(`Failed to create sequence record for index ${i}`);
           continue;
         }
+
+        console.log(`[Sequence ${i + 1}/${actualLimit}] Created with ID: ${sequenceRecord.id}`);
 
         // Queue sequence for processing
         await addJob({
@@ -109,30 +101,25 @@ export const bookProcessingWorker = new Worker<BookProcessingJob>(
             sequenceId: sequenceRecord.id,
             bookId,
             content: sequence.content,
+            sequenceNumber: i + 1,
+            totalSequences: actualLimit
           },
         });
 
-        console.log(`Queued sequence ${sequenceRecord.id} for processing`);
-      } catch (error) {
-        console.error(`Error processing sequence ${i}:`, error);
-        throw error;
+        console.log(`[Sequence ${i + 1}/${actualLimit}] Queued for processing`);
       }
+
+      // Update book status
+      await withRetry(() =>
+        db.update(books)
+          .set({ status: 'processed' })
+          .where(eq(books.id, bookId))
+      );
+
+      console.log(`Completed processing book ${bookId} with ${actualLimit} sequences`);
+    } catch (error) {
+      console.error(`Error in bookProcessingWorker for book ${bookId}:`, error);
     }
-
-    // After the loop
-    const createdSequences = await db.query.sequences.findMany({
-      where: eq(sequences.bookId, bookId)
-    });
-    console.log('Debug - Created sequences count:', createdSequences.length);
-
-    // Update book status
-    await withRetry(() =>
-      db.update(books)
-        .set({ status: 'processed' })
-        .where(eq(books.id, bookId))
-    );
-
-    console.log(`Completed processing book ${bookId}, updating status`);
   },
   queueOptions
 ); 
