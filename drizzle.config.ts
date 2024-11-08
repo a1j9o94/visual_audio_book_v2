@@ -13,7 +13,7 @@ export default {
     password: connectionString.password,
     database: connectionString.pathname.slice(1), // Remove leading slash
     port: Number(connectionString.port) || 5432,
-    ssl: env.DATABASE_URL.includes('localhost') ? false : true,
+    ssl: env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
   },
   out: "./drizzle",
 } satisfies Config;
