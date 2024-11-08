@@ -4,6 +4,12 @@ import * as schema from './schema';
 
 export type DrizzleClient = ReturnType<typeof drizzle<typeof schema>>;
 
+interface DrizzleInternals {
+  $query: {
+    client: postgres.Sql;
+  };
+}
+
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is not defined');
 }
@@ -24,14 +30,21 @@ export const globalDb = drizzle(sql, { schema });
 
 // For workers that need their own connection
 export function createDb() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not defined');
+  }
   const sql = postgres(process.env.DATABASE_URL, DEFAULT_PG_CONFIG);
   return drizzle(sql, { schema });
 }
 
 // Helper to close a database connection
 export async function closeDb(db: DrizzleClient) {
-  // @ts-expect-error - internal property access
-  await db.$query.client.end();
+  if (!db) {
+    return;
+  }
+  // Cast to our internal interface instead of any
+  const client = (db as unknown as DrizzleInternals).$query.client;
+  await client.end();
 }
 
 // Retry helper with exponential backoff

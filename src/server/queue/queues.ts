@@ -28,12 +28,24 @@ export const sceneAnalysisQueue = new Queue<JobData['data']>(
   queueOptions
 );
 
+export const cleanupQueue = new Queue<JobData['data']>(
+  QUEUE_NAMES.CLEANUP,
+  queueOptions
+);
+
+export const statusCheckQueue = new Queue<JobData['data']>(
+  QUEUE_NAMES.STATUS_CHECK,
+  queueOptions
+);
+
 // Setup repeatable jobs
 async function setupRepeatableJobs() {
   // Cleanup job
   await bookProcessingQueue.add(
     repeatableJobOptions.cleanupJob.jobName,
-    { type: 'cleanup' },
+    {
+      type: 'cleanup',
+    },
     {
       repeat: {
         pattern: repeatableJobOptions.cleanupJob.pattern
@@ -45,7 +57,9 @@ async function setupRepeatableJobs() {
   // Status check job
   await bookProcessingQueue.add(
     repeatableJobOptions.statusCheck.jobName,
-    { type: 'status-check' },
+    {
+      type: 'status-check',
+    },
     {
       repeat: {
         pattern: repeatableJobOptions.statusCheck.pattern
@@ -63,6 +77,8 @@ export const addJob = async (jobData: JobData) => {
     'audio-generation': audioGenerationQueue,
     'image-generation': imageGenerationQueue,
     'scene-analysis': sceneAnalysisQueue,
+    'cleanup': cleanupQueue,
+    'status-check': statusCheckQueue,
   }[jobData.type];
 
   await queue.add(jobData.type, jobData.data);

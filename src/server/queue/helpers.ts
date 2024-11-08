@@ -11,12 +11,17 @@ export async function processBook(gutenbergId: string) {
     author: 'Pending...',
   }).returning();
 
+  if (!book) {
+    throw new Error('Failed to create book record');
+  }
+
   // Queue book processing job
   await addJob({
     type: 'book-processing',
     data: {
       bookId: book.id,
       gutenbergId,
+      numSequences: 1000000000,
     },
   });
 
@@ -24,9 +29,11 @@ export async function processBook(gutenbergId: string) {
 }
 
 export async function getJobStatus(jobId: string, queueName: string) {
+  console.log('getJobStatus', jobId, queueName);
   // Implement job status checking logic
 }
 
 export async function retryFailedJob(jobId: string, queueName: string) {
+  console.log('retryFailedJob', jobId, queueName);
   // Implement retry logic
 }

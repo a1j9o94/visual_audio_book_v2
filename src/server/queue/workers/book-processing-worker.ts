@@ -76,6 +76,11 @@ export const bookProcessingWorker = new Worker<BookProcessingJob>(
       // Create sequences in database and queue for processing
       for (let i = 0; i < sequencesData.length; i++) {
         const sequence = sequencesData[i];
+        if (!sequence) {
+          console.error(`Sequence data is undefined for index ${i}`);
+          continue;
+        }
+        
         console.log(`Processing sequence ${i + 1}/${actualLimit}`);
         
         const [sequenceRecord] = await db.insert(sequences).values({

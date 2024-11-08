@@ -5,6 +5,8 @@ import {
   audioGenerationWorker,
   imageGenerationWorker,
   sceneAnalysisWorker,
+  cleanupWorker,
+  statusCheckWorker,
 } from './workers';
 
 // Error handling for workers
@@ -14,6 +16,8 @@ const workers = [
   audioGenerationWorker,
   imageGenerationWorker,
   sceneAnalysisWorker,
+  cleanupWorker,
+  statusCheckWorker,
 ];
 
 workers.forEach((worker) => {

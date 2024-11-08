@@ -41,12 +41,15 @@ async function generateImage(prompt: string, retryCount = 0): Promise<Buffer> {
     );
     
     if (response.status !== 200) {
-      const errorText = Buffer.from(response.data).toString();
+      if (!response.data) {
+        throw new Error(`API returned status ${response.status}: No data`);
+      }
+      const errorText = Buffer.from(response.data as ArrayBuffer).toString();
       throw new Error(`API returned status ${response.status}: ${errorText}`);
     }
 
     console.log('Image generation API response status:', response.status);
-    return Buffer.from(response.data);
+    return Buffer.from(response.data as ArrayBuffer);
   } catch (error) {
     console.error('Image generation error details:', {
       error: error instanceof Error ? error.message : 'Unknown error',

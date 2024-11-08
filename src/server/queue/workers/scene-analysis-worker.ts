@@ -70,7 +70,7 @@ export const sceneAnalysisWorker = new Worker<SceneAnalysisJob>(
           .where(eq(sequences.id, job.data.sequenceId))
       );
 
-      let sceneDescription: string = '';
+      let sceneDescription = '';
 
       // Use a transaction for atomic operations
       await db.transaction(async (tx) => {

@@ -45,7 +45,8 @@ export const sequences = pgTable(`${tablePrefix}sequence`, {
   startPosition: integer("start_position").notNull(),
   endPosition: integer("end_position").notNull(),
   status: text("status").notNull().default('pending'),
-  createdAt: timestamp("created_at").defaultNow()
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
 export const sequenceMedia = pgTable(`${tablePrefix}sequence_media`, {
@@ -68,7 +69,9 @@ export const sequenceMetadata = pgTable(`${tablePrefix}sequence_metadata`, {
   mood: jsonb("mood"),
   lighting: jsonb("lighting"),
   settings: jsonb("settings"),
-  aiAnnotations: jsonb("ai_annotations")
+  aiAnnotations: jsonb("ai_annotations"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
 export const sequenceCharacters = pgTable(`${tablePrefix}sequence_character`, {
@@ -143,21 +146,24 @@ export const accounts = pgTable(`${tablePrefix}account`, {
 }));
 
 export const sessions = pgTable(`${tablePrefix}session`, {
-  id: uuid("id").defaultRandom().primaryKey(),
-  sessionToken: text("session_token").notNull().unique(),
+  sessionToken: text("session_token").notNull().primaryKey(),
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   expires: timestamp("expires").notNull()
 });
 
-export const verificationTokens = pgTable(`${tablePrefix}verification_token`, {
-  identifier: text("identifier").notNull(),
-  token: text("token").notNull(),
-  expires: timestamp("expires").notNull(),
-}, (vt) => ({
-  compoundKey: primaryKey({ columns: [vt.identifier, vt.token] })
-}));
+export const verificationTokens = pgTable(
+  `${tablePrefix}verification_token`,
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires").notNull(),
+  },
+  (vt) => [
+    primaryKey({ columns: [vt.identifier, vt.token] }),
+  ]
+);
 
 // Relations
 export const booksRelations = relations(books, ({ many }) => ({

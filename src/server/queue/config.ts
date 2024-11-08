@@ -1,4 +1,3 @@
-import { Queue, Worker } from "bullmq";
 import { env } from "~/env";
 import IORedis from "ioredis";
 
@@ -26,6 +25,8 @@ export const QUEUE_NAMES = {
   AUDIO_GENERATION: 'audio-generation',
   IMAGE_GENERATION: 'image-generation',
   SCENE_ANALYSIS: 'scene-analysis',
+  CLEANUP: 'cleanup',
+  STATUS_CHECK: 'status-check',
 } as const;
 
 export type QueueName = typeof QUEUE_NAMES[keyof typeof QUEUE_NAMES];

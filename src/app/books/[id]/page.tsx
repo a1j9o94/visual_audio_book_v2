@@ -2,21 +2,26 @@ import { api } from "~/trpc/server";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { auth } from "~/server/auth";
-import { type Metadata, type PageProps } from "next";
+import { type Metadata } from "next";
 
-type Params = {
+type Params = Promise<{
   id: string;
+}>;
+
+type PageProps = {
+  params: Params;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-type Props = PageProps<Params> & {
-  searchParams: Record<string, string | string[] | undefined>;
-};
-
-export default async function BookPage({ params, searchParams }: Props) {
+export default async function BookPage({ params }: PageProps) {
   const session = await auth();
+  if (!session) {
+    notFound();
+  }
+  const { id } = await params;
   
   try {
-    const book = await api.book.getById(params.id);
+    const book = await api.book.getById(id);
 
     if (!book) {
       notFound();
@@ -82,14 +87,17 @@ export default async function BookPage({ params, searchParams }: Props) {
       </main>
     );
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(message);
     notFound();
   }
 }
 
 // Optionally, you can also add metadata generation
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
-    const book = await api.book.getById(params.id);
+    const { id } = await params;
+    const book = await api.book.getById(id);
     return {
       title: book?.title ?? 'Book Not Found',
       description: `${book?.title} by ${book?.author}`,
