@@ -2,17 +2,14 @@ import { api } from "~/trpc/server";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { auth } from "~/server/auth";
+import { type Metadata } from "next";
 
-// Update the type definition for the page props
-interface BookPageProps {
-  params: {
-    id: string;
-  };
+type Props = {
+  params: { id: string }
+  searchParams: Record<string, string | string[] | undefined>
 }
 
-export default async function BookPage({
-  params,
-}: BookPageProps) {
+export default async function BookPage({ params, searchParams }: Props) {
   const session = await auth();
   
   try {
@@ -83,5 +80,21 @@ export default async function BookPage({
     );
   } catch (error) {
     notFound();
+  }
+}
+
+// Optionally, you can also add metadata generation
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  try {
+    const book = await api.book.getById(params.id);
+    return {
+      title: book?.title ?? 'Book Not Found',
+      description: `${book?.title} by ${book?.author}`,
+    };
+  } catch {
+    return {
+      title: 'Book Not Found',
+      description: 'The requested book could not be found',
+    };
   }
 }
