@@ -3,11 +3,16 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { auth } from "~/server/auth";
 
+// Update the type definition for the page props
+interface BookPageProps {
+  params: {
+    id: string;
+  };
+}
+
 export default async function BookPage({
   params,
-}: {
-  params: { id: string };
-}) {
+}: BookPageProps) {
   const session = await auth();
   
   try {
