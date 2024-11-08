@@ -2,12 +2,15 @@ import { api } from "~/trpc/server";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { auth } from "~/server/auth";
-import { type Metadata } from "next";
+import { type Metadata, type PageProps } from "next";
 
-type Props = {
-  params: { id: string }
-  searchParams: Record<string, string | string[] | undefined>
-}
+type Params = {
+  id: string;
+};
+
+type Props = PageProps<Params> & {
+  searchParams: Record<string, string | string[] | undefined>;
+};
 
 export default async function BookPage({ params, searchParams }: Props) {
   const session = await auth();
