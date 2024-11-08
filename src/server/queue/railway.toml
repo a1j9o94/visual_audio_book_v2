@@ -1,23 +1,17 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install && npm run build"
+buildCommand = "npm install"
 
 [deploy]
-startCommand = "npm start"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 100
+startCommand = "npm run worker:start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
 [[services]]
-name = "web"
+name = "queue-worker"
 envVars = [
   "DATABASE_URL",
   "REDIS_URL",
-  "NEXTAUTH_URL",
-  "NEXTAUTH_SECRET",
-  "DISCORD_CLIENT_ID",
-  "DISCORD_CLIENT_SECRET",
   "UPLOADTHING_TOKEN",
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
