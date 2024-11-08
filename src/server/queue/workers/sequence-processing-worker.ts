@@ -4,7 +4,7 @@ import { addJob } from "../queues";
 import { sequences } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import { withRetry } from "~/server/db/utils";
-import { createDb, closeDb } from "~/server/db/utils";
+import { createDb } from "~/server/db/utils";
 
 interface SequenceProcessingJob {
   sequenceId: string;

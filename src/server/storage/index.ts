@@ -1,6 +1,6 @@
 // src/server/storage/index.ts
 import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { UTApi, UTFile } from "uploadthing/server";
+import { UTApi } from "uploadthing/server";
 import { db } from "~/server/db";
 import { sequenceMedia } from "~/server/db/schema";
 import { eq } from "drizzle-orm";

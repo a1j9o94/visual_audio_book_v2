@@ -8,11 +8,15 @@ export interface BookProcessingJob {
     sequenceId: string;
     bookId: string;
     content: string;
+    sequenceNumber: number;
+    totalSequences: number;
   }
   
   export interface AudioGenerationJob {
     sequenceId: string;
     text: string;
+    sequenceNumber: number;
+    totalSequences: number;
   }
   
   export interface ImageGenerationJob {
@@ -24,6 +28,16 @@ export interface BookProcessingJob {
     sequenceId: string;
     content: string;
     bookId: string;
+    sequenceNumber: number;
+    totalSequences: number;
+  }
+  
+  export interface CleanupJob {
+    type: 'cleanup';
+  }
+  
+  export interface StatusCheckJob {
+    type: 'status-check';
   }
   
   export type JobData =
@@ -31,4 +45,6 @@ export interface BookProcessingJob {
     | { type: 'sequence-processing'; data: SequenceProcessingJob }
     | { type: 'audio-generation'; data: AudioGenerationJob }
     | { type: 'image-generation'; data: ImageGenerationJob }
-    | { type: 'scene-analysis'; data: SceneAnalysisJob };
+    | { type: 'scene-analysis'; data: SceneAnalysisJob }
+    | { type: 'cleanup'; data: CleanupJob }
+    | { type: 'status-check'; data: StatusCheckJob };
