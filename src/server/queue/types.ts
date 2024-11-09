@@ -22,6 +22,8 @@ export interface BookProcessingJob {
   export interface ImageGenerationJob {
     sequenceId: string;
     sceneDescription: string;
+    sequenceNumber: number;
+    totalSequences: number;
   }
   
   export interface SceneAnalysisJob {

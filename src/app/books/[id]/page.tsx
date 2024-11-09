@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { auth } from "~/server/auth";
 import { type Metadata } from "next";
+import { ProcessSequencesButton } from "./_components/process-sequences-button";
+import Link from "next/link";
+import { cn } from "~/lib/utils";
 
 type Params = Promise<{
   id: string;
@@ -27,10 +30,13 @@ export default async function BookPage({ params }: PageProps) {
       notFound();
     }
 
+    const sequences = book.sequences ?? [];
+    const userProgress = book.userProgress?.[0];
+
     return (
-      <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container mx-auto px-4 py-16">
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
+
+        <div className="container mx-auto h-screen px-4 py-16">
+          <div className="grid h-full grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
             {/* Book Cover and Info */}
             <div className="flex flex-col gap-4">
               {book.coverImageUrl && (
@@ -48,11 +54,11 @@ export default async function BookPage({ params }: PageProps) {
                 <h1 className="text-2xl font-bold">{book.title}</h1>
                 <p className="text-gray-300">by {book.author}</p>
                 <p className="text-sm text-gray-400">Status: {book.status}</p>
-                {book.userProgress && (
+                {userProgress && (
                   <div className="mt-2 rounded-lg bg-white/5 p-4">
                     <h3 className="text-sm font-semibold">Your Progress</h3>
                     <p className="text-xs text-gray-400">
-                      Last read: Sequence {book.userProgress.lastSequenceNumber}
+                      Last read: Sequence {userProgress.lastSequenceNumber}
                     </p>
                   </div>
                 )}
@@ -62,29 +68,34 @@ export default async function BookPage({ params }: PageProps) {
             {/* Sequences */}
             <div className="flex flex-col gap-4">
               <h2 className="text-xl font-semibold">Sequences</h2>
-              {book.sequences?.length > 0 ? (
-                <div className="grid gap-4">
-                  {book.sequences.map((sequence) => (
-                    <div
-                      key={sequence.id}
-                      className="rounded-lg bg-white/5 p-4 hover:bg-white/10"
-                    >
-                      <p className="text-sm">
-                        Sequence {sequence.sequenceNumber}
-                      </p>
-                      <p className="mt-2 text-gray-300">{sequence.content}</p>
-                    </div>
-                  ))}
+              {sequences.length > 0 ? (
+                <div className="overflow-y-auto pr-4" style={{ maxHeight: "calc(100vh - 12rem)" }}>
+                  <div className="grid gap-4">
+                    {sequences.map((sequence) => (
+                      <Link
+                        key={sequence.sequence.id}
+                        href={`/books/${book.id}/${sequence.sequence.sequenceNumber}`}
+                        className="block cursor-pointer rounded-lg bg-white/5 p-4 hover:bg-white/10"
+                      >
+                        <p className="text-sm">
+                          Sequence {sequence.sequence.sequenceNumber}
+                        </p>
+                        <p className="mt-2 text-gray-300">{sequence.sequence.content}</p>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <p className="text-gray-400">
-                  No sequences available yet. The book is being processed.
-                </p>
+                <div className="text-center">
+                  <p className="mb-4 text-gray-400">
+                    No sequences available yet.
+                  </p>
+                  <ProcessSequencesButton bookId={book.id} />
+                </div>
               )}
             </div>
           </div>
         </div>
-      </main>
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

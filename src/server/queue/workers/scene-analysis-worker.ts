@@ -15,6 +15,8 @@ interface SceneAnalysisJob {
   sequenceId: string;
   content: string;
   bookId: string;
+  sequenceNumber: number;
+  totalSequences: number;
 }
 
 interface SceneAnalysisResult {
@@ -100,6 +102,8 @@ export const sceneAnalysisWorker = new Worker<SceneAnalysisJob>(
         data: {
           sequenceId: job.data.sequenceId,
           sceneDescription,
+          sequenceNumber: job.data.sequenceNumber,
+          totalSequences: job.data.totalSequences
         },
       });
 

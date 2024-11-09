@@ -18,9 +18,8 @@ interface ImageGenerationJob {
 
 async function generateImage(prompt: string, retryCount = 0): Promise<Buffer> {
   try {
-    console.log(`Attempting to generate image with prompt: ${prompt.substring(0, 100)}...`);
+    console.log(`[Image Generation] Attempting to generate image with prompt: ${prompt.substring(0, 100)}...`);
     const route = process.env.STABILITY_AI_API_URL;
-    console.log(`Using route: ${route}`);
     
     const payload = {
       prompt,
@@ -48,14 +47,11 @@ async function generateImage(prompt: string, retryCount = 0): Promise<Buffer> {
       throw new Error(`API returned status ${response.status}: ${errorText}`);
     }
 
-    console.log('Image generation API response status:', response.status);
+    console.log('[Image Generation] API response status:', response.status);
     return Buffer.from(response.data as ArrayBuffer);
   } catch (error) {
-    console.error('Image generation error details:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
     if (retryCount < 2) {
-      console.log(`API call failed, retrying (attempt ${retryCount + 2}/3)...`);
+      console.log(`[Image Generation] API call failed, retrying (attempt ${retryCount + 2}/3)...`);
       await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
       return generateImage(prompt, retryCount + 1);
     }
@@ -71,10 +67,12 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
     
     try {
       // Get the sequence to find its book ID
-      const sequence = await db.query.sequences.findFirst({
-        where: eq(sequences.id, sequenceId),
-        columns: { bookId: true }
-      });
+      const sequence = await withRetry(() => 
+        db.query.sequences.findFirst({
+          where: eq(sequences.id, sequenceId),
+          columns: { bookId: true }
+        })
+      );
 
       if (!sequence?.bookId) {
         throw new Error(`No book ID found for sequence ${sequenceId}`);
@@ -88,6 +86,7 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
       // Save the image file
       const storage = getMediaStorage();
       const imageUrl = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
+      console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image saved: ${imageUrl}`);
 
       // Save the image URL
       await withRetry(() =>
@@ -114,9 +113,11 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
       );
 
       // Check if audio is also complete by checking sequenceMedia
-      const media = await db.query.sequenceMedia.findFirst({
-        where: eq(sequenceMedia.sequenceId, sequenceId)
-      });
+      const media = await withRetry(() => 
+        db.query.sequenceMedia.findFirst({
+          where: eq(sequenceMedia.sequenceId, sequenceId)
+        })
+      );
 
       if (media?.audioUrl) {
         console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Both audio and image complete, marking as completed`);
