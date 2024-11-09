@@ -1,13 +1,15 @@
 import { BookSearch } from "./_components/book-search";
 import { BookList } from "./_components/book-list";
+import type { Book } from "./_components/book-list";
 import { api } from "~/trpc/server";
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams?: { q?: string };
-}) {
-  const query = searchParams?.q;
+type PageProps = {
+  searchParams?: Promise<{ q?: string }>;
+};
+
+export default async function Home({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const query = params?.q;
   
   // Only get library books if there's no query
   const libraryBooks = await api.book.getAll();
@@ -38,7 +40,7 @@ export default async function Home({
           <h2 className="mb-4 text-2xl font-bold">Your Library</h2>
           {libraryBooks.length > 0 ? (
             <BookList 
-              books={libraryBooks}
+              books={libraryBooks as Book[]}
             />
           ) : (
             <div className="text-center">
