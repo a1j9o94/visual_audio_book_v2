@@ -24,19 +24,7 @@ export default async function Home({ searchParams }: PageProps) {
           Welcome to Visual Audio Books
         </h1>
 
-        <BookSearch />
-
-        {searchResults && (
-          <div className="mb-12">
-            <h2 className="mb-4 text-2xl font-bold">Search Results</h2>
-            <BookList 
-              books={searchResults} 
-              isSearchResults 
-            />
-          </div>
-        )}
-
-        <div>
+        <div className="mb-12">
           <h2 className="mb-4 text-2xl font-bold">Your Library</h2>
           {libraryBooks.length > 0 ? (
             <BookList 
@@ -52,6 +40,18 @@ export default async function Home({ searchParams }: PageProps) {
             </div>
           )}
         </div>
+
+        <BookSearch />
+
+        {searchResults && (
+          <div className="mb-12">
+            <h2 className="mb-4 text-2xl font-bold">Search Results</h2>
+            <BookList 
+              books={searchResults} 
+              isSearchResults 
+            />
+          </div>
+        )}
       </div>
     </main>
   );
