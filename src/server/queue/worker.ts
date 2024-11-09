@@ -134,7 +134,10 @@ const healthCheck = setInterval(() => {
   
   // Check if workers are still running
   workers.forEach(worker => {
-    console.log(`Worker ${worker.name} status: active`);
+    //only log paused workers
+    if (worker.isPaused()) {
+      console.log(`Worker ${worker.name} status: paused`);
+    }
   });
 }, 30000);
 
