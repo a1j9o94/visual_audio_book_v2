@@ -47,3 +47,6 @@ yarn-error.log*
 
 #any document called log.txt anywhere
 log.txt
+
+#Redis dumps
+*.rdb

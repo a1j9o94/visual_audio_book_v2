@@ -29,7 +29,7 @@ async function analyzeScene(content: string, retryCount = 0): Promise<SceneAnaly
       model: "claude-3-sonnet-20240229",
       max_tokens: 1000,
       temperature: 0.7,
-      system: "You are a skilled film director and screenwriter. Analyze the scene and provide a concise, vivid description suitable for image generation. Focus on the main visual elements, mood, and setting.",
+      system: "You are a skilled film director and screenwriter. Analyze the scene and provide a concise, vivid description suitable for image generation. Focus on the main visual elements, mood, and setting. Always describe scenes in English, even if the original text is in another language.",
       messages: [
         {
           role: "user",
