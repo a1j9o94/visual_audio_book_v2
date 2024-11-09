@@ -12,7 +12,7 @@ type Params = {
 
 type PageProps = {
   params: Promise<Params>;
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function BookPage({ params }: PageProps) {

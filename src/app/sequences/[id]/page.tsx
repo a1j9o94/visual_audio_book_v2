@@ -3,16 +3,27 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { AudioPlayer } from "../../books/[id]/[sequence_number]/_components/AudioPlayer";
 import { type Metadata } from "next";
+import { auth } from "~/server/auth";
 
-type Props = {
-  params: {
+type Params = {
     id: string;
   };
-};
+  
+  type PageProps = {
+    params: Promise<Params>;
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  };
 
-export default async function SequencePage({ params }: Props) {
-  try {
-    const sequence = await api.sequence.getById(params.id);
+export default async function SequencePage({ params }: PageProps) {
+    const session = await auth();
+    if (!session) {
+        notFound();
+    }
+
+    const { id } = await params;
+
+    try {
+    const sequence = await api.sequence.getById(id);
 
     if (!sequence) {
       notFound();
@@ -54,14 +65,16 @@ export default async function SequencePage({ params }: Props) {
       </main>
     );
   } catch (error) {
-    console.error(error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(message);
     notFound();
   }
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
-    const sequence = await api.sequence.getById(params.id);
+    const { id } = await params;
+    const sequence = await api.sequence.getById(id);
     return {
       title: `Sequence ${sequence?.sequenceNumber ?? 'Not Found'}`,
       description: sequence?.content?.slice(0, 160),
