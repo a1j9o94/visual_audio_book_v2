@@ -8,7 +8,7 @@ import axios from "axios";
 interface OpenLibraryBook {
   title: string;
   author_name?: string[];
-  id_gutenberg?: string[];
+  id_project_gutenberg?: string[];
   cover_i?: number;
   first_publish_year?: number;
 }
@@ -84,13 +84,13 @@ export const bookRouter = createTRPCRouter({
           .map((book) => ({
             title: book.title,
             author: book.author_name?.[0] ?? 'Unknown Author',
-            gutenbergId: book.id_project_gutenberg?.[0],
+            gutenbergId: book.id_project_gutenberg?.[0] ?? null,
             coverId: book.cover_i,
             firstPublishYear: book.first_publish_year,
           }))
           .filter((book): book is (typeof book & { gutenbergId: string }) => 
-            typeof book.gutenbergId === 'string'
-          ); // Only return books with Gutenberg IDs
+            book.gutenbergId !== null && book.gutenbergId !== undefined
+          );
 
         console.log("Books with Gutenberg:", booksWithGutenberg);
         console.log('API Response Docs:', response.data.docs);
