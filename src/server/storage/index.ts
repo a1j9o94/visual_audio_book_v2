@@ -159,19 +159,25 @@ export class UploadthingMediaStorage implements MediaStorage {
       });
 
       console.log('[Storage] Initiating upload to UploadThing');
-      const uploadResponse = await this.utapi.uploadFiles(blob);
+      const uploadResponse = await this.utapi.uploadFiles([blob]);
+      if(!uploadResponse || uploadResponse.length === 0) {
+        throw new Error('Upload failed - no response');
+      }
+      if(!uploadResponse[0]) {
+        throw new Error('Upload failed - no array response');
+      }
       
       console.log('[Storage] Raw upload response:', {
         response: JSON.stringify(uploadResponse),
-        error: uploadResponse.error,
-        data: uploadResponse.data
+        error: uploadResponse[0].error,
+        data: uploadResponse[0].data
       });
       
-      if (!uploadResponse?.data?.url) {
+      if (!uploadResponse[0].data?.url) {
         throw new Error('Upload failed - no URL in response');
       }
 
-      return uploadResponse.data.url;
+      return uploadResponse[0].data.url;
     } catch (error) {
       console.error('[Storage] Audio upload error:', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -212,19 +218,25 @@ export class UploadthingMediaStorage implements MediaStorage {
       });
 
       console.log('[Storage] Initiating upload to UploadThing');
-      const uploadResponse = await this.utapi.uploadFiles(blob);
+      const uploadResponse = await this.utapi.uploadFiles([blob]);
+      if(!uploadResponse || uploadResponse.length === 0) {
+        throw new Error('Upload failed - no response');
+      }
+      if(!uploadResponse[0]) {
+        throw new Error('Upload failed - no array response');
+      }
 
       console.log('[Storage] Raw upload response:', {
         response: JSON.stringify(uploadResponse),
-        error: uploadResponse.error,
-        data: uploadResponse.data
+        error: uploadResponse[0].error,
+        data: uploadResponse[0].data
       });
       
-      if (!uploadResponse?.data?.url) {
+      if (!uploadResponse[0].data?.url) {
         throw new Error('Upload failed - no URL in response');
       }
 
-      return uploadResponse.data.url;
+      return uploadResponse[0].data.url;
     } catch (error) {
       console.error('[Storage] Image upload error:', {
         error: error instanceof Error ? error.message : 'Unknown error',

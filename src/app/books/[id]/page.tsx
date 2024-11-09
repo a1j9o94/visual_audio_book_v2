@@ -75,7 +75,7 @@ export default async function BookPage({ params }: PageProps) {
             <div className="flex flex-col gap-4">
               <h2 className="text-xl font-semibold">Sequences</h2>
               {sequences.length > 0 ? (
-                <div className="overflow-y-auto pr-4" style={{ maxHeight: "calc(100vh - 12rem)" }}>
+                <div className="overflow-y-auto pr-4 sequence-list-container">
                   <div className="grid gap-4">
                     {sequences.map((sequence) => (
                       <Link
