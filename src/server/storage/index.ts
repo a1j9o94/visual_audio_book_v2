@@ -4,6 +4,7 @@ import { UTApi } from "uploadthing/server";
 import { db } from "~/server/db";
 import { sequenceMedia } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
+import { File, Blob } from 'node:buffer';
 
 const f = createUploadthing();
 const utapi = new UTApi({

@@ -50,9 +50,14 @@ async function generateImage(prompt: string, retryCount = 0): Promise<Buffer> {
     console.log('[Image Generation] API response status:', response.status);
     return Buffer.from(response.data as ArrayBuffer);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
 
     //check for content moderation error and if so, don't retry
-    if (error instanceof Error && error.message.includes('Content moderation')) {
+    if (message.includes('Content moderation')) {
+      throw error;
+    }
+
+    if(message.includes('English is the only supported')){
       throw error;
     }
 
