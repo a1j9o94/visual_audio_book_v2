@@ -146,13 +146,43 @@ process.on('exit', () => {
 
 console.log('Workers started and ready to process jobs');
 
-// Add at the beginning of the file
+// Add more detailed UploadThing verification
+async function verifyUploadThingConfig() {
+  console.log('Verifying UploadThing configuration');
+  
+  if (!process.env.UPLOADTHING_TOKEN) {
+    throw new Error('UPLOADTHING_TOKEN is required but not set');
+  }
+
+  try {
+    const utapi = new UTApi({
+      token: process.env.UPLOADTHING_TOKEN,
+      fetch: fetch,
+    });
+    console.log('UploadThing API initialized', utapi);
+
+    // Log configuration details
+    console.log('UploadThing configuration:', {
+      hasToken: !!process.env.UPLOADTHING_TOKEN,
+      tokenLength: process.env.UPLOADTHING_TOKEN.length,
+      environment: process.env.NODE_ENV
+    });
+
+  } catch (error) {
+    console.error('UploadThing verification failed:', error);
+    throw error;
+  }
+}
+
+// Add to startup sequence
 console.log('Worker starting with configuration:', {
   environment: process.env.NODE_ENV,
   hasUploadThingToken: !!process.env.UPLOADTHING_TOKEN,
   hasRedisUrl: !!process.env.REDIS_URL,
   hasDatabaseUrl: !!process.env.DATABASE_URL
 });
+
+await verifyUploadThingConfig();
 
 // Verify storage initialization
 try {

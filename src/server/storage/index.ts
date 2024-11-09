@@ -4,7 +4,7 @@ import { UTApi } from "uploadthing/server";
 import { db } from "~/server/db";
 import { sequenceMedia } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
-import { File, Blob } from 'node:buffer';
+import { Blob } from 'node:buffer';
 
 const f = createUploadthing();
 
@@ -136,27 +136,35 @@ export class UploadthingMediaStorage implements MediaStorage {
       bookId,
       sequenceId,
       bufferSize: buffer.length,
-      hasUtApi: !!this.utapi,
-      environment: process.env.NODE_ENV
+      hasUtApi: !!this.utapi
     });
 
     try {
-      // Create file with detailed logging
-      console.log('[Storage] Creating audio File object');
-      const file = new File([buffer], `${sequenceId}.mp3`, { type: 'audio/mpeg' });
-      console.log('[Storage] Audio File object created:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
+      // Create a proper Blob object that matches the expected type
+      const blob = new Blob([buffer], { type: 'audio/mpeg' }) as unknown as File & {
+        name: string;
+        lastModified?: number;
+      };
+      
+      // Add required properties to make it FileEsque
+      Object.defineProperties(blob, {
+        name: {
+          value: `${sequenceId}.mp3`,
+          writable: false
+        },
+        lastModified: {
+          value: Date.now(),
+          writable: false
+        }
       });
-      
+
       console.log('[Storage] Initiating upload to UploadThing');
-      const uploadResponse = await this.utapi.uploadFiles(file);
+      const uploadResponse = await this.utapi.uploadFiles(blob);
       
-      console.log('[Storage] Upload response received:', {
-        success: !!uploadResponse?.data,
-        hasUrl: !!uploadResponse?.data?.url,
-        responseKeys: uploadResponse ? Object.keys(uploadResponse) : []
+      console.log('[Storage] Raw upload response:', {
+        response: JSON.stringify(uploadResponse),
+        error: uploadResponse.error,
+        data: uploadResponse.data
       });
       
       if (!uploadResponse?.data?.url) {
@@ -169,7 +177,8 @@ export class UploadthingMediaStorage implements MediaStorage {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
         bookId,
-        sequenceId
+        sequenceId,
+        isUploadThingError: error instanceof Error && error.message.includes('UploadThing')
       });
       throw error;
     }
@@ -180,67 +189,49 @@ export class UploadthingMediaStorage implements MediaStorage {
       bookId,
       sequenceId,
       bufferSize: buffer.length,
-      hasUtApi: !!this.utapi,
-      environment: process.env.NODE_ENV
+      hasUtApi: !!this.utapi
     });
     
     try {
-      // Create blob and file with detailed logging
-      console.log('[Storage] Creating Blob object');
-      const blob = new Blob([buffer], { type: 'image/png' });
-      console.log('[Storage] Blob created:', {
-        size: blob.size,
-        type: blob.type
-      });
-
-      console.log('[Storage] Creating File object');
-      const file = new File([blob], `${sequenceId}.png`, { 
-        type: 'image/png',
-      });
-      console.log('[Storage] File object created:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
+      // Create a proper Blob object that matches the expected type
+      const blob = new Blob([buffer], { type: 'image/png' }) as unknown as File & {
+        name: string;
+        lastModified?: number;
+      };
+      
+      // Add required properties to make it FileEsque
+      Object.defineProperties(blob, {
+        name: {
+          value: `${sequenceId}.png`,
+          writable: false
+        },
+        lastModified: {
+          value: Date.now(),
+          writable: false
+        }
       });
 
       console.log('[Storage] Initiating upload to UploadThing');
-      const uploadResponse = await this.utapi.uploadFiles(file);
+      const uploadResponse = await this.utapi.uploadFiles(blob);
 
-      console.log('[Storage] Upload response received:', {
-        success: !!uploadResponse?.data,
-        hasUrl: !!uploadResponse?.data?.url,
-        responseKeys: uploadResponse ? Object.keys(uploadResponse) : []
+      console.log('[Storage] Raw upload response:', {
+        response: JSON.stringify(uploadResponse),
+        error: uploadResponse.error,
+        data: uploadResponse.data
       });
       
       if (!uploadResponse?.data?.url) {
-        console.error('[Storage] Upload failed - no URL in response:', uploadResponse);
-        throw new Error("Upload failed - no URL returned");
+        throw new Error('Upload failed - no URL in response');
       }
 
-      console.log('[Storage] Updating database with image URL');
-      await db
-        .insert(sequenceMedia)
-        .values({
-          sequenceId,
-          imageUrl: uploadResponse.data.url,
-          generatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: sequenceMedia.sequenceId,
-          set: {
-            imageUrl: uploadResponse.data.url,
-            generatedAt: new Date(),
-          },
-        });
-
-      console.log('[Storage] Database updated successfully');
       return uploadResponse.data.url;
     } catch (error) {
       console.error('[Storage] Image upload error:', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
         bookId,
-        sequenceId
+        sequenceId,
+        isUploadThingError: error instanceof Error && error.message.includes('UploadThing')
       });
       throw error;
     }
