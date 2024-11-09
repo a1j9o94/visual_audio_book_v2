@@ -7,10 +7,18 @@ import { eq } from "drizzle-orm";
 import { File, Blob } from 'node:buffer';
 
 const f = createUploadthing();
-const utapi = new UTApi({
-  token: process.env.UPLOADTHING_TOKEN,
-  fetch: fetch,
-});
+
+let utapiInstance: UTApi | null = null;
+
+function getUtApi() {
+  if (!utapiInstance) {
+    utapiInstance = new UTApi({
+      token: process.env.UPLOADTHING_TOKEN,
+      fetch: fetch,
+    });
+  }
+  return utapiInstance;
+}
 
 // Add this debug log
 console.log('UploadThing API initialized with token:', process.env.UPLOADTHING_TOKEN ? 'present' : 'missing');
@@ -56,6 +64,12 @@ interface MediaStorage {
 
 // Uploadthing storage implementation
 export class UploadthingMediaStorage implements MediaStorage {
+  private utapi: UTApi;
+
+  constructor() {
+    this.utapi = getUtApi();
+  }
+
   async saveAudio(bookId: string, sequenceId: string, buffer: Buffer): Promise<string> {
     console.log('Starting audio upload for sequence:', sequenceId);
     
@@ -65,7 +79,7 @@ export class UploadthingMediaStorage implements MediaStorage {
     });
 
     try {
-      const response = await utapi.uploadFiles([file]);
+      const response = await this.utapi.uploadFiles([file]);
       console.log('Upload response:', JSON.stringify(response, null, 2));
       
       const uploadedFile = response[0]?.data;
@@ -107,7 +121,7 @@ export class UploadthingMediaStorage implements MediaStorage {
     });
 
     try {
-      const response = await utapi.uploadFiles([file]);
+      const response = await this.utapi.uploadFiles([file]);
       console.log('Upload response:', JSON.stringify(response, null, 2));
       
       const uploadedFile = response[0]?.data;

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { UTApi } from "uploadthing/server";
 import {
   bookProcessingWorker,
   sequenceProcessingWorker,
@@ -8,6 +9,19 @@ import {
   cleanupWorker,
   statusCheckWorker,
 } from './workers';
+
+// Initialize UploadThing API globally for workers
+const utapi = new UTApi({
+  token: process.env.UPLOADTHING_TOKEN,
+  fetch: fetch,
+});
+
+// Verify UploadThing configuration
+if (!process.env.UPLOADTHING_TOKEN) {
+  throw new Error('UPLOADTHING_TOKEN is required but not set');
+}
+
+console.log('UploadThing configuration verified', utapi);
 
 // Error handling for workers
 const workers = [
