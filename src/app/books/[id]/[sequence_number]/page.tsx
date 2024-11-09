@@ -4,16 +4,18 @@ import Image from "next/image";
 import { AudioPlayer } from "./_components/AudioPlayer";
 import { type Metadata } from "next";
 
-type Props = {
-  params: {
-    id: string;
-    sequence_number: string;
-  };
+type Params = Promise<{
+  id: string;
+  sequence_number: string;
+}>;
+
+type PageProps = {
+  params: Params;
 };
 
-export default async function BookSequencePage({ params }: Props) {
+export default async function BookSequencePage({ params }: PageProps) {
   try {
-    const { id, sequence_number } = params;
+    const { id, sequence_number } = await params;
     
     if(!id || !sequence_number) {
       notFound();
@@ -87,9 +89,9 @@ export default async function BookSequencePage({ params }: Props) {
   }
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
-    const { id, sequence_number } = params;
+    const { id, sequence_number } = await params;
 
     const sequenceNumber = parseInt(sequence_number, 10);
     if (isNaN(sequenceNumber)) {
