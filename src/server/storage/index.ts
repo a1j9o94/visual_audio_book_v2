@@ -159,7 +159,11 @@ export class UploadthingMediaStorage implements MediaStorage {
   }
 
   async saveImage(bookId: string, sequenceId: string, buffer: Buffer): Promise<string> {
-    console.log('Starting image upload for sequence:', sequenceId);
+    console.log('Starting image upload for sequence with config:', {
+      bookId,
+      sequenceId,
+      bufferSize: buffer.length,
+    });
     
     // Create a Blob and File instead of UTFile
     const blob = new Blob([buffer], { type: 'image/png' });
