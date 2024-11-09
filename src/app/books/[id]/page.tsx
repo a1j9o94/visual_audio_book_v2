@@ -103,7 +103,7 @@ export default async function BookPage({ params }: PageProps) {
                   {sequences.map((sequence) => (
                     <Link
                       key={sequence.sequence.id}
-                      href={`/sequences/${sequence.sequence.id}`}
+                      href={`/books/${book.id}/${sequence.sequence.sequenceNumber}`}
                       className="block cursor-pointer rounded-lg bg-white/5 p-4 hover:bg-white/10"
                     >
                       <p className="text-sm">

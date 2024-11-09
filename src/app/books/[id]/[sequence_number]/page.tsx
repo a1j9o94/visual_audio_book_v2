@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { AudioPlayer } from "./_components/AudioPlayer";
 import { type Metadata } from "next";
+import { auth } from "~/server/auth";
 
 type Params = Promise<{
   id: string;
@@ -13,68 +14,41 @@ type PageProps = {
   params: Params;
 };
 
-// Add type safety for sequence.media access
-type SafeSequenceMedia = {
+type SafeSequence = {
   id: string;
-  sequenceId: string | null;
-  audioData: string | null;
-  imageData: string | null;
-  audioDuration: number | null;
-  imageMetadata: unknown;
-  generatedAt: Date | null;
-  audioUrl: string | null;
-  imageUrl: string | null;
+  sequenceNumber: number;
+  content: string;
+  media: {
+    imageUrl: string | null;
+    audioUrl: string | null;
+  } | null;
 };
 
 export default async function BookSequencePage({ params }: PageProps) {
+  const session = await auth();
+  if (!session) {
+    notFound();
+  }
+
   try {
     const { id, sequence_number } = await params;
-    
-    if(!id || !sequence_number) {
-      notFound();
-    }
-
-    console.log(`Loading page for book ${id} and sequence ${sequence_number}`);
-
     const sequenceNumber = parseInt(sequence_number, 10);
-    
-    
-    if (isNaN(sequenceNumber)) {
-      console.error('Invalid sequence number:', sequence_number);
+
+    if (!id || isNaN(sequenceNumber)) {
       notFound();
     }
 
-    console.log('Parsed sequence number:', sequenceNumber);
-
-    const book = await api.book.getById(id);
-    
-    if (!book) {
-      console.error('Book not found:', id);
-      notFound();
-    }
-
-    const sequence = await api.sequence.getByBookIdAndNumber({
+    const sequence = (await api.sequence.getByBookIdAndNumber({
       bookId: id,
       sequenceNumber,
-    });
+    })) as SafeSequence;
 
-    if (!sequence) {
-      console.error('Sequence not found:', { bookId: id, sequenceNumber });
+    if (!sequence?.media) {
       notFound();
     }
 
-    // Type assertion for sequence.media
-    const media = sequence.media as SafeSequenceMedia | null;
-
-    if (!media) {
-      console.log("No media found for sequence", sequence.id);
-      notFound();
-    }
-
-    if (!media.imageData || !media.audioData) {
-      console.log("No media data found for sequence", sequence.id);
-      notFound();
-    }
+    const imageUrl = sequence.media.imageUrl ?? null;
+    const audioUrl = sequence.media.audioUrl ?? null;
 
     return (
       <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
@@ -86,10 +60,10 @@ export default async function BookSequencePage({ params }: PageProps) {
               </h1>
             </div>
 
-            {media.imageUrl && (
+            {imageUrl && (
               <div className="relative aspect-video w-full overflow-hidden rounded-lg">
                 <Image
-                  src={media.imageUrl}
+                  src={imageUrl}
                   alt={`Sequence ${sequence.sequenceNumber}`}
                   fill
                   className="object-cover"
@@ -102,9 +76,9 @@ export default async function BookSequencePage({ params }: PageProps) {
               <p className="text-gray-200">{sequence.content}</p>
             </div>
 
-            {media.audioUrl && (
+            {audioUrl && (
               <div className="rounded-lg bg-white/5 p-6">
-                <AudioPlayer audioUrl={media.audioUrl} />
+                <AudioPlayer audioUrl={audioUrl} />
               </div>
             )}
           </div>
@@ -120,8 +94,8 @@ export default async function BookSequencePage({ params }: PageProps) {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
     const { id, sequence_number } = await params;
-
     const sequenceNumber = parseInt(sequence_number, 10);
+    
     if (isNaN(sequenceNumber)) {
       return {
         title: 'Invalid Sequence',

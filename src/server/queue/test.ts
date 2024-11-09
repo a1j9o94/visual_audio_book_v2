@@ -174,8 +174,21 @@ async function testQueue() {
         throw new Error(`Missing metadata for sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES}`);
       }
 
-      if (!media?.audioUrl || !media?.imageUrl) {
-        throw new Error(`Missing media for sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES}`);
+      if (!media?.audioData || !media?.imageData) {
+        throw new Error(`Missing media data for sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES}`);
+      }
+
+      // Verify the media data is valid base64
+      try {
+        if (media.audioData) {
+          Buffer.from(media.audioData, 'base64');
+        }
+        if (media.imageData) {
+          Buffer.from(media.imageData, 'base64');
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        throw new Error(`Invalid media data format for sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES}: ${message}`);
       }
 
       console.log(`Sequence ${sequence.sequenceNumber + 1}/${NUM_TEST_SEQUENCES} completed successfully`);

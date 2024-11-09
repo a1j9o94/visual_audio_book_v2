@@ -149,6 +149,10 @@ export const sequenceRouter = createTRPCRouter({
         });
       }
 
-      return sequence;
+      // Transform the sequence with computed URLs
+      return {
+        ...sequence,
+        media: createMediaUrls(sequence.media),
+      } as SequenceWithMedia;
     }),
 }); 
