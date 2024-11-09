@@ -5,6 +5,30 @@ import { eq, and, asc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 
+// Helper function to create data URLs
+function createMediaUrls(media: typeof sequenceMedia.$inferSelect | null) {
+  if (!media) return null;
+  
+  return {
+    ...media,
+    audioUrl: media.audioData ? `data:audio/mpeg;base64,${media.audioData}` : null,
+    imageUrl: media.imageData ? `data:image/png;base64,${media.imageData}` : null,
+  };
+}
+
+type MediaWithUrls = ReturnType<typeof createMediaUrls>;
+
+type SequenceWithMedia = typeof sequences.$inferSelect & {
+  media: MediaWithUrls;
+  metadata: typeof sequenceMetadata.$inferSelect | null;
+  characters: {
+    character: {
+      id: string;
+      name: string;
+    };
+  }[];
+};
+
 export const sequenceRouter = createTRPCRouter({
   getByBookId: publicProcedure
     .input(z.string())
@@ -32,17 +56,16 @@ export const sequenceRouter = createTRPCRouter({
         )
         .orderBy(asc(sequences.sequenceNumber));
 
-      console.log('Sequences:', results);
-
-      // Double-check media exists even for completed sequences
-      return results.filter(
-        (result) => result.media?.audioUrl && result.media?.imageUrl
-      );
+      return results.map(result => ({
+        ...result.sequence,
+        media: createMediaUrls(result.media),
+        metadata: result.metadata,
+      }));
     }),
 
   getById: publicProcedure
     .input(z.string())
-    .query(async ({ ctx, input: sequenceId }) => {
+    .query(async ({ ctx, input: sequenceId }): Promise<SequenceWithMedia> => {
       const sequence = await ctx.db.query.sequences.findFirst({
         where: eq(sequences.id, sequenceId),
         with: {
@@ -63,7 +86,11 @@ export const sequenceRouter = createTRPCRouter({
         });
       }
 
-      return sequence;
+      // Transform the sequence with computed URLs
+      return {
+        ...sequence,
+        media: createMediaUrls(sequence.media),
+      } as SequenceWithMedia;
     }),
 
   updateProgress: protectedProcedure

@@ -1,9 +1,6 @@
-"use client";
-
 import React from "react";
 import Link from "next/link";
 import { cn } from "~/lib/utils";
-import { usePathname } from "next/navigation";
 import { type ReactNode } from "react";
 
 type Props = {
@@ -13,11 +10,8 @@ type Props = {
   }>;
 };
 
-export default function BookLayout({ children, params }: Props) {
-  const resolvedParams = React.use(params);
-  const { id } = resolvedParams;
-  const pathname = usePathname();
-  const isSequencePage = pathname.split('/').length > 3;
+export default async function SequenceLayout({ children }: Props) {
+
 
   return (
     <div className="flex flex-col">
@@ -32,17 +26,6 @@ export default function BookLayout({ children, params }: Props) {
               )}
             >
               ← Back to Library
-            </Link>
-            <div className="h-4 w-px bg-white/10" />
-            <Link
-              href={`/books/${id}`}
-              className={cn(
-                "flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium",
-                "hover:bg-white/10",
-                !isSequencePage ? "bg-white/10" : ""
-              )}
-            >
-              {isSequencePage ? "← Back to Book" : "Overview"}
             </Link>
           </div>
         </div>

@@ -7,7 +7,7 @@ import "./src/env.js";
 /** @type {import("next").NextConfig} */
 const config = {
     images: {
-        domains: ["www.gutenberg.org", "covers.openlibrary.org", "utfs.io"],
+        domains: ["www.gutenberg.org", "covers.openlibrary.org", "utfs.io", "https://api.uploadthing.com"],
     },
 };
 

@@ -13,6 +13,19 @@ type PageProps = {
   params: Params;
 };
 
+// Add type safety for sequence.media access
+type SafeSequenceMedia = {
+  id: string;
+  sequenceId: string | null;
+  audioData: string | null;
+  imageData: string | null;
+  audioDuration: number | null;
+  imageMetadata: unknown;
+  generatedAt: Date | null;
+  audioUrl: string | null;
+  imageUrl: string | null;
+};
+
 export default async function BookSequencePage({ params }: PageProps) {
   try {
     const { id, sequence_number } = await params;
@@ -50,38 +63,53 @@ export default async function BookSequencePage({ params }: PageProps) {
       notFound();
     }
 
+    // Type assertion for sequence.media
+    const media = sequence.media as SafeSequenceMedia | null;
+
+    if (!media) {
+      console.log("No media found for sequence", sequence.id);
+      notFound();
+    }
+
+    if (!media.imageData || !media.audioData) {
+      console.log("No media data found for sequence", sequence.id);
+      notFound();
+    }
+
     return (
-      <div className="container mx-auto px-4 py-16">
-        <div className="flex flex-col gap-8">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">
-              Sequence {sequence.sequenceNumber}
-            </h1>
-          </div>
-
-          {sequence.media?.imageUrl && (
-            <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-              <Image
-                src={sequence.media.imageUrl}
-                alt={`Sequence ${sequence.sequenceNumber}`}
-                fill
-                className="object-cover"
-                sizes="(min-width: 768px) 100vw, 100vw"
-              />
+      <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
+        <div className="container mx-auto px-4 py-16">
+          <div className="flex flex-col gap-8">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold">
+                Sequence {sequence.sequenceNumber}
+              </h1>
             </div>
-          )}
 
-          <div className="rounded-lg bg-white/5 p-6">
-            <p className="text-gray-200">{sequence.content}</p>
-          </div>
+            {media.imageUrl && (
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+                <Image
+                  src={media.imageUrl}
+                  alt={`Sequence ${sequence.sequenceNumber}`}
+                  fill
+                  className="object-cover"
+                  sizes="(min-width: 768px) 100vw, 100vw"
+                />
+              </div>
+            )}
 
-          {sequence.media?.audioUrl && (
             <div className="rounded-lg bg-white/5 p-6">
-              <AudioPlayer audioUrl={sequence.media.audioUrl} />
+              <p className="text-gray-200">{sequence.content}</p>
             </div>
-          )}
+
+            {media.audioUrl && (
+              <div className="rounded-lg bg-white/5 p-6">
+                <AudioPlayer audioUrl={media.audioUrl} />
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </main>
     );
   } catch (error) {
     console.error('Error in BookSequencePage:', error);

@@ -14,6 +14,16 @@ type Params = {
     searchParams?: Promise<Record<string, string | string[] | undefined>>;
   };
 
+type SafeSequence = {
+  id: string;
+  sequenceNumber: number;
+  content: string;
+  media: {
+    imageUrl: string | null;
+    audioUrl: string | null;
+  } | null;
+};
+
 export default async function SequencePage({ params }: PageProps) {
     const session = await auth();
     if (!session) {
@@ -23,11 +33,18 @@ export default async function SequencePage({ params }: PageProps) {
     const { id } = await params;
 
     try {
-    const sequence = await api.sequence.getById(id);
+    const sequence = (await api.sequence.getById(id)) as SafeSequence;
 
     if (!sequence) {
       notFound();
     }
+
+    if(!sequence.media) {
+      notFound();
+    }
+
+    const imageUrl = sequence.media.imageUrl ?? null;
+    const audioUrl = sequence.media.audioUrl ?? null;
 
     return (
       <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
@@ -39,10 +56,10 @@ export default async function SequencePage({ params }: PageProps) {
               </h1>
             </div>
 
-            {sequence.media?.imageUrl && (
+            {imageUrl && (
               <div className="relative aspect-video w-full overflow-hidden rounded-lg">
                 <Image
-                  src={sequence.media.imageUrl}
+                  src={imageUrl}
                   alt={`Sequence ${sequence.sequenceNumber}`}
                   fill
                   className="object-cover"
@@ -55,9 +72,9 @@ export default async function SequencePage({ params }: PageProps) {
               <p className="text-gray-200">{sequence.content}</p>
             </div>
 
-            {sequence.media?.audioUrl && (
+            {audioUrl && (
               <div className="rounded-lg bg-white/5 p-6">
-                <AudioPlayer audioUrl={sequence.media.audioUrl} />
+                <AudioPlayer audioUrl={audioUrl} />
               </div>
             )}
           </div>

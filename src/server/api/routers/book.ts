@@ -58,14 +58,28 @@ export const bookRouter = createTRPCRouter({
         )
         .where(and(
           eq(sequences.bookId, input),
-          isNotNull(sequenceMedia.audioUrl),
-          isNotNull(sequenceMedia.imageUrl)
+          isNotNull(sequenceMedia.audioData),
+          isNotNull(sequenceMedia.imageData)
         ))
         .orderBy(desc(sequences.sequenceNumber));
 
+      const transformedSequences = bookSequences.map(seq => ({
+        sequence: {
+          id: seq.sequence.id,
+          sequenceNumber: seq.sequence.sequenceNumber,
+          content: seq.sequence.content,
+        },
+        media: seq.media ? {
+          audioData: seq.media.audioData,
+          imageData: seq.media.imageData,
+          audioUrl: seq.media.audioData ? `data:audio/mpeg;base64,${seq.media.audioData}` : null,
+          imageUrl: seq.media.imageData ? `data:image/png;base64,${seq.media.imageData}` : null,
+        } : null,
+      }));
+
       return {
         ...book,
-        sequences: bookSequences
+        sequences: transformedSequences
       };
     }),
 
@@ -205,5 +219,25 @@ export const bookRouter = createTRPCRouter({
       });
 
       return { success: true };
+    }),
+
+  getBookIdBySequenceId: publicProcedure
+    .input(z.string())
+    .query(async ({ ctx, input }) => {
+      const sequence = await ctx.db.query.sequences.findFirst({
+        where: eq(sequences.id, input),
+        columns: {
+          bookId: true,
+        },
+      });
+
+      if (!sequence) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Sequence with id ${input} not found`,
+        });
+      }
+
+      return sequence.bookId;
     }),
 }); 

@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { UTApi } from "uploadthing/server";
 import {
   bookProcessingWorker,
   sequenceProcessingWorker,
@@ -10,19 +9,6 @@ import {
   statusCheckWorker,
 } from './workers';
 import { getMediaStorage } from '~/server/storage';
-
-// Initialize and verify UploadThing configuration
-const utapi = new UTApi({
-  token: process.env.UPLOADTHING_TOKEN,
-  fetch: fetch,
-});
-
-// Verify UploadThing configuration
-if (!process.env.UPLOADTHING_TOKEN) {
-  throw new Error('UPLOADTHING_TOKEN is required but not set');
-}
-
-console.log('UploadThing configuration verified', utapi);
 
 let isShuttingDown = false;
 
@@ -68,7 +54,7 @@ const shutdown = async (signal: string) => {
     const shutdownTimeout = setTimeout(() => {
       console.error('Shutdown timeout reached, forcing exit');
       process.exit(1);
-    }, 30000); // Increased to 30 seconds
+    }, 30000); // 30 seconds timeout
     
     // Close all workers
     await Promise.all(workers.map(async (worker) => {
@@ -130,14 +116,11 @@ const healthCheck = setInterval(() => {
   }
   
   const timestamp = new Date().toISOString();
-  //print if workers length is 0
   if (workers.length === 0) {
     console.log(`[${timestamp}] No workers running`);
   }
   
-  // Check if workers are still running
   workers.forEach(worker => {
-    //only log paused workers
     if (worker.isPaused()) {
       console.log(`Worker ${worker.name} status: paused`);
     }
@@ -150,46 +133,6 @@ process.on('exit', () => {
   console.log('Process exit handler called');
 });
 
-console.log('Workers started and ready to process jobs');
-
-// Add more detailed UploadThing verification
-async function verifyUploadThingConfig() {
-  console.log('Verifying UploadThing configuration');
-  
-  if (!process.env.UPLOADTHING_TOKEN) {
-    throw new Error('UPLOADTHING_TOKEN is required but not set');
-  }
-
-  try {
-    const utapi = new UTApi({
-      token: process.env.UPLOADTHING_TOKEN,
-      fetch: fetch,
-    });
-    console.log('UploadThing API initialized', utapi);
-
-    // Log configuration details
-    console.log('UploadThing configuration:', {
-      hasToken: !!process.env.UPLOADTHING_TOKEN,
-      tokenLength: process.env.UPLOADTHING_TOKEN.length,
-      environment: process.env.NODE_ENV
-    });
-
-  } catch (error) {
-    console.error('UploadThing verification failed:', error);
-    throw error;
-  }
-}
-
-// Add to startup sequence
-console.log('Worker starting with configuration:', {
-  environment: process.env.NODE_ENV,
-  hasUploadThingToken: !!process.env.UPLOADTHING_TOKEN,
-  hasRedisUrl: !!process.env.REDIS_URL,
-  hasDatabaseUrl: !!process.env.DATABASE_URL
-});
-
-await verifyUploadThingConfig();
-
 // Verify storage initialization
 try {
   const storage = getMediaStorage();
@@ -198,3 +141,5 @@ try {
   console.error('Failed to initialize storage:', error);
   process.exit(1);
 }
+
+console.log('Workers started and ready to process jobs');

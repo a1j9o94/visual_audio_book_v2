@@ -49,15 +49,41 @@ export const sequences = pgTable(`${tablePrefix}sequence`, {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// First, let's define the type for our media row
+type SequenceMediaRow = {
+  id: string;
+  sequenceId: string | null;
+  audioData: string | null;
+  imageData: string | null;
+  audioDuration: number | null;
+  imageMetadata: unknown;
+  generatedAt: Date | null;
+  audioUrl: string | null;
+  imageUrl: string | null;
+};
+
 export const sequenceMedia = pgTable(`${tablePrefix}sequence_media`, {
   id: uuid("id").defaultRandom().primaryKey(),
   sequenceId: uuid("sequence_id").references(() => sequences.id, { onDelete: "cascade" }).unique(),
-  audioUrl: text("audio_url"),
-  imageUrl: text("image_url"),
+  audioData: text("audio_data"),
+  imageData: text("image_data"),
   audioDuration: integer("audio_duration"),
   imageMetadata: jsonb("image_metadata"),
   generatedAt: timestamp("generated_at").defaultNow()
-});
+}, (_table) => ({
+  audioUrl: {
+    resolve: (row: SequenceMediaRow): string | null => 
+      row.audioData 
+        ? `data:audio/mpeg;base64,${row.audioData}` 
+        : null,
+  },
+  imageUrl: {
+    resolve: (row: SequenceMediaRow): string | null => 
+      row.imageData 
+        ? `data:image/png;base64,${row.imageData}` 
+        : null,
+  }
+}));
 
 export const sequenceMetadata = pgTable(`${tablePrefix}sequence_metadata`, {
   id: uuid("id").defaultRandom().primaryKey(),

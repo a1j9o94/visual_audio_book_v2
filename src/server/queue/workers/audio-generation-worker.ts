@@ -89,15 +89,15 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
       const storage = getMediaStorage();
 
       // Save the audio file with retries and detailed logging
-      let audioUrl: string | undefined;
+      let audioData: string | undefined;
       let retryCount = 0;
       const maxRetries = 3;
 
-      while (!audioUrl && retryCount < maxRetries) {
+      while (!audioData && retryCount < maxRetries) {
         try {
           console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Attempting to save audio (attempt ${retryCount + 1}/${maxRetries})`);
-          audioUrl = await storage.saveAudio(sequence.bookId, sequenceId, buffer);
-          console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Audio saved successfully: ${audioUrl}`);
+          audioData = await storage.saveAudio(sequence.bookId, sequenceId, buffer);
+          console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Audio saved successfully: ${audioData}`);
         } catch (error) {
           retryCount++;
           console.error(`[Audio Worker ${sequenceNumber}/${totalSequences}] Save attempt ${retryCount} failed:`, {
@@ -113,27 +113,11 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
         }
       }
 
-      if (!audioUrl) {
+      if (!audioData) {
         throw new Error('Failed to save audio after all retries');
       }
 
-      // Update database with detailed logging
-      console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Updating database`);
-      await withRetry(() =>
-        db.insert(sequenceMedia)
-          .values({
-            sequenceId,
-            audioUrl,
-            generatedAt: new Date()
-          })
-          .onConflictDoUpdate({
-            target: sequenceMedia.sequenceId,
-            set: {
-              audioUrl,
-              generatedAt: new Date()
-            }
-          })
-      );
+      console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Audio saved successfully: ${audioData}`);
 
       // Update sequence status
       console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Updating sequence status`);
@@ -150,7 +134,7 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
         })
       );
 
-      if (media?.imageUrl) {
+      if (media?.imageData && media?.audioData) {
         console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Sequence complete`);
         await withRetry(() =>
           db.update(sequences)
@@ -159,7 +143,7 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
         );
       }
 
-      return { sequenceId, audioUrl };
+      return { sequenceId, audioData };
     } catch (error) {
       console.error(`[Audio Worker ${sequenceNumber}/${totalSequences}] Fatal error:`, {
         error: error instanceof Error ? error.message : 'Unknown error',

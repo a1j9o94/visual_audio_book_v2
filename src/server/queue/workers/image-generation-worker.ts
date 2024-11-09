@@ -109,15 +109,15 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
       const storage = getMediaStorage();
 
       // Save the image file with retries and detailed logging
-      let imageUrl: string | undefined;
+      let imageData: string | undefined;
       let retryCount = 0;
       const maxRetries = 3;
 
-      while (!imageUrl && retryCount < maxRetries) {
+      while (!imageData && retryCount < maxRetries) {
         try {
           console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Attempting to save image (attempt ${retryCount + 1}/${maxRetries})`);
-          imageUrl = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
-          console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Image saved successfully: ${imageUrl}`);
+          imageData = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
+          console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Image saved successfully: ${imageData}`);
         } catch (error) {
           retryCount++;
           console.error(`[Image Worker ${sequenceNumber}/${totalSequences}] Save attempt ${retryCount} failed:`, {
@@ -133,27 +133,12 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         }
       }
 
-      if (!imageUrl) {
+      if (!imageData) {
         throw new Error('Failed to save image after all retries');
       }
 
       // Update database with detailed logging
-      console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Updating database`);
-      await withRetry(() =>
-        db.insert(sequenceMedia)
-          .values({
-            sequenceId,
-            imageUrl,
-            generatedAt: new Date()
-          })
-          .onConflictDoUpdate({
-            target: sequenceMedia.sequenceId,
-            set: {
-              imageUrl,
-              generatedAt: new Date()
-            }
-          })
-      );
+      console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Successfully added image to database`);
 
       // Update sequence status
       console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Updating sequence status`);
@@ -170,7 +155,7 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         })
       );
 
-      if (media?.audioUrl) {
+      if (media?.audioData && media?.imageData) {
         console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Sequence complete`);
         await withRetry(() =>
           db.update(sequences)
@@ -179,7 +164,7 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         );
       }
 
-      return { sequenceId, imageUrl };
+      return { sequenceId, imageData };
     } catch (error) {
       console.error(`[Image Worker ${sequenceNumber}/${totalSequences}] Fatal error:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
