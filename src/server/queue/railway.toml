@@ -9,6 +9,7 @@ restartPolicyMaxRetries = 3
 
 [[services]]
 name = "queue-worker"
+numReplicas = 1
 envVars = [
   "DATABASE_URL",
   "REDIS_URL",
@@ -18,3 +19,11 @@ envVars = [
   "STABILITY_API_KEY",
   "STABILITY_AI_API_URL"
 ]
+
+[services.deploy]
+healthcheck = {
+  command = "node -e \"process.exit(0)\"",
+  interval = "30s",
+  timeout = "10s",
+  retries = 3
+}
