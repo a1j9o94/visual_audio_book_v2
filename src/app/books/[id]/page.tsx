@@ -6,13 +6,13 @@ import { type Metadata } from "next";
 import { ProcessSequencesButton } from "./_components/process-sequences-button";
 import Link from "next/link";
 
-type Params = Promise<{
+type Params = {
   id: string;
-}>;
+};
 
 type PageProps = {
-  params: Params;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  params: Promise<Params>;
+  searchParams?: Record<string, string | string[] | undefined>;
 };
 
 export default async function BookPage({ params }: PageProps) {
