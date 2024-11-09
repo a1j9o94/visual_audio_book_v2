@@ -1,6 +1,7 @@
 [build]
 builder = "NIXPACKS"
 buildCommand = "npm install"
+nodeVersion = "20.11.1"
 
 [deploy]
 startCommand = "npm run worker:start"
