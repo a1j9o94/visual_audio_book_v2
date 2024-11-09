@@ -169,6 +169,8 @@ export class UploadthingMediaStorage implements MediaStorage {
 
     try {
       const uploadResponse = await this.utapi.uploadFiles(file);
+
+      console.log('Upload response:', uploadResponse);
       
       
       if (!uploadResponse?.data?.url) {
