@@ -23,6 +23,8 @@ if (!process.env.UPLOADTHING_TOKEN) {
 
 console.log('UploadThing configuration verified', utapi);
 
+let isShuttingDown = false;
+
 // Initialize workers array
 const workers = [
   bookProcessingWorker,
@@ -53,22 +55,39 @@ workers.forEach((worker) => {
 const shutdown = async (signal: string) => {
   console.log(`Received ${signal}, starting graceful shutdown...`);
   
+  if (isShuttingDown) {
+    console.log('Shutdown already in progress...');
+    return;
+  }
+  
+  isShuttingDown = true;
+  
   try {
     // Set a timeout for the shutdown process
     const shutdownTimeout = setTimeout(() => {
       console.error('Shutdown timeout reached, forcing exit');
       process.exit(1);
-    }, 10000); // 10 second timeout
+    }, 30000); // Increased to 30 seconds
     
     // Close all workers
     await Promise.all(workers.map(async (worker) => {
       console.log(`Closing worker: ${worker.name}`);
-      await worker.close();
+      try {
+        await worker.close();
+        console.log(`Worker ${worker.name} closed successfully`);
+      } catch (error) {
+        console.error(`Error closing worker ${worker.name}:`, error);
+      }
     }));
     
     clearTimeout(shutdownTimeout);
     console.log('All workers closed successfully');
-    process.exit(0);
+    
+    // Give some time for logs to flush
+    setTimeout(() => {
+      console.log('Exiting process...');
+      process.exit(0);
+    }, 1000);
   } catch (error) {
     console.error('Error during shutdown:', error);
     process.exit(1);
@@ -76,26 +95,52 @@ const shutdown = async (signal: string) => {
 };
 
 // Handle various shutdown signals
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
-process.on('SIGINT', () => void shutdown('SIGINT'));
-process.on('SIGHUP', () => void shutdown('SIGHUP'));
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM signal');
+  void shutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT signal');
+  void shutdown('SIGINT');
+});
+
+process.on('SIGHUP', () => {
+  console.log('Received SIGHUP signal');
+  void shutdown('SIGHUP');
+});
 
 // Add process error handlers
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-  // Don't exit immediately to allow for cleanup
-  setTimeout(() => process.exit(1), 1000);
+  void shutdown('uncaughtException');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit immediately to allow for cleanup
-  setTimeout(() => process.exit(1), 1000);
+  void shutdown('unhandledRejection');
 });
 
-// Add a keep-alive mechanism
-setInterval(() => {
-  console.log('Worker heartbeat - still running');
+// Add a keep-alive mechanism that checks worker health
+const healthCheck = setInterval(() => {
+  if (isShuttingDown) {
+    console.log('Shutdown in progress, skipping health check');
+    return;
+  }
+  
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] Worker heartbeat - workers: ${workers.length}`);
+  
+  // Check if workers are still running
+  workers.forEach(worker => {
+    console.log(`Worker ${worker.name} status: active`);
+  });
 }, 30000);
+
+// Ensure the interval is cleared on shutdown
+process.on('exit', () => {
+  clearInterval(healthCheck);
+  console.log('Process exit handler called');
+});
 
 console.log('Workers started and ready to process jobs');
