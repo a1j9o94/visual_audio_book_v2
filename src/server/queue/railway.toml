@@ -24,7 +24,7 @@ envVars = [
 [services.deploy]
 healthcheck = {
   command = "node -e \"process.exit(0)\"",
-  interval = "30s",
+  interval = "600s",
   timeout = "10s",
   retries = 3
 }
