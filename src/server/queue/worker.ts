@@ -130,7 +130,10 @@ const healthCheck = setInterval(() => {
   }
   
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] Worker heartbeat - workers: ${workers.length}`);
+  //print if workers length is 0
+  if (workers.length === 0) {
+    console.log(`[${timestamp}] No workers running`);
+  }
   
   // Check if workers are still running
   workers.forEach(worker => {
