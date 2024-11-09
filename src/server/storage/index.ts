@@ -18,8 +18,14 @@ let utapiInstance: UTApi | null = null;
 
 function getUtApi() {
   if (!utapiInstance) {
+    console.log('Initializing UploadThing API with config:', {
+      hasToken: !!process.env.UPLOADTHING_TOKEN,
+      tokenLength: process.env.UPLOADTHING_TOKEN?.length || 0,
+      environment: process.env.NODE_ENV
+    });
+
     if (!process.env.UPLOADTHING_TOKEN) {
-      throw new Error('UPLOADTHING_TOKEN is required');
+      throw new Error('UPLOADTHING_TOKEN is required but not set');
     }
 
     try {
@@ -28,16 +34,10 @@ function getUtApi() {
         Buffer.from(process.env.UPLOADTHING_TOKEN, 'base64').toString('utf-8')
       ) as UploadThingToken;
 
-      // Type guard
-      if (!decoded.apiKey || !decoded.appId || !Array.isArray(decoded.regions)) {
-        throw new Error('Invalid token structure');
-      }
-
-      console.log('Initializing UploadThing API with token:', {
-        hasToken: true,
-        tokenLength: process.env.UPLOADTHING_TOKEN.length,
-        appId: decoded.appId,
-        regions: decoded.regions,
+      console.log('Token validation:', {
+        hasApiKey: !!decoded.apiKey,
+        hasAppId: !!decoded.appId,
+        regions: decoded.regions
       });
 
       utapiInstance = new UTApi({
@@ -46,7 +46,7 @@ function getUtApi() {
       });
     } catch (error) {
       console.error('Failed to initialize UploadThing:', error);
-      throw new Error('Invalid UPLOADTHING_TOKEN format');
+      throw error;
     }
   }
   return utapiInstance;
@@ -132,20 +132,32 @@ export class UploadthingMediaStorage implements MediaStorage {
   }
 
   async saveAudio(bookId: string, sequenceId: string, buffer: Buffer): Promise<string> {
-    console.log('Starting audio upload with config:', {
-      hasToken: !!process.env.UPLOADTHING_TOKEN,
-      tokenLength: process.env.UPLOADTHING_TOKEN?.length ?? 0,
+    console.log('[Storage] Starting audio upload:', {
       bookId,
       sequenceId,
       bufferSize: buffer.length,
+      hasUtApi: !!this.utapi,
+      environment: process.env.NODE_ENV
     });
 
     try {
+      // Create file with detailed logging
+      console.log('[Storage] Creating audio File object');
       const file = new File([buffer], `${sequenceId}.mp3`, { type: 'audio/mpeg' });
+      console.log('[Storage] Audio File object created:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
       
+      console.log('[Storage] Initiating upload to UploadThing');
       const uploadResponse = await this.utapi.uploadFiles(file);
       
-      console.log('Upload response:', uploadResponse);
+      console.log('[Storage] Upload response received:', {
+        success: !!uploadResponse?.data,
+        hasUrl: !!uploadResponse?.data?.url,
+        responseKeys: uploadResponse ? Object.keys(uploadResponse) : []
+      });
       
       if (!uploadResponse?.data?.url) {
         throw new Error('Upload failed - no URL in response');
@@ -153,35 +165,59 @@ export class UploadthingMediaStorage implements MediaStorage {
 
       return uploadResponse.data.url;
     } catch (error) {
-      console.error('Upload error details:', error);
+      console.error('[Storage] Audio upload error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        bookId,
+        sequenceId
+      });
       throw error;
     }
   }
 
   async saveImage(bookId: string, sequenceId: string, buffer: Buffer): Promise<string> {
-    console.log('Starting image upload for sequence with config:', {
+    console.log('[Storage] Starting image upload:', {
       bookId,
       sequenceId,
       bufferSize: buffer.length,
+      hasUtApi: !!this.utapi,
+      environment: process.env.NODE_ENV
     });
     
-    // Create a Blob and File instead of UTFile
-    const blob = new Blob([buffer], { type: 'image/png' });
-    const file = new File([blob], `${sequenceId}.png`, { 
-      type: 'image/png',
-    });
-
     try {
+      // Create blob and file with detailed logging
+      console.log('[Storage] Creating Blob object');
+      const blob = new Blob([buffer], { type: 'image/png' });
+      console.log('[Storage] Blob created:', {
+        size: blob.size,
+        type: blob.type
+      });
+
+      console.log('[Storage] Creating File object');
+      const file = new File([blob], `${sequenceId}.png`, { 
+        type: 'image/png',
+      });
+      console.log('[Storage] File object created:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+
+      console.log('[Storage] Initiating upload to UploadThing');
       const uploadResponse = await this.utapi.uploadFiles(file);
 
-      console.log('Upload response:', uploadResponse);
-      
+      console.log('[Storage] Upload response received:', {
+        success: !!uploadResponse?.data,
+        hasUrl: !!uploadResponse?.data?.url,
+        responseKeys: uploadResponse ? Object.keys(uploadResponse) : []
+      });
       
       if (!uploadResponse?.data?.url) {
-        console.error('Upload failed - no URL in response');
+        console.error('[Storage] Upload failed - no URL in response:', uploadResponse);
         throw new Error("Upload failed - no URL returned");
       }
 
+      console.log('[Storage] Updating database with image URL');
       await db
         .insert(sequenceMedia)
         .values({
@@ -197,9 +233,15 @@ export class UploadthingMediaStorage implements MediaStorage {
           },
         });
 
+      console.log('[Storage] Database updated successfully');
       return uploadResponse.data.url;
     } catch (error) {
-      console.error('Upload error details:', error);
+      console.error('[Storage] Image upload error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        bookId,
+        sequenceId
+      });
       throw error;
     }
   }

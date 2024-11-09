@@ -18,13 +18,14 @@ envVars = [
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
   "STABILITY_API_KEY",
-  "STABILITY_AI_API_URL"
+  "STABILITY_AI_API_URL",
+  "NODE_ENV"
 ]
 
 [services.deploy]
 healthcheck = {
-  command = "node -e \"process.exit(0)\"",
-  interval = "600s",
+  command = "node -e \"console.log('Environment:', process.env.NODE_ENV, 'UploadThing:', !!process.env.UPLOADTHING_TOKEN)\"",
+  interval = "5m",
   timeout = "10s",
   retries = 3
 }

@@ -144,3 +144,20 @@ process.on('exit', () => {
 });
 
 console.log('Workers started and ready to process jobs');
+
+// Add at the beginning of the file
+console.log('Worker starting with configuration:', {
+  environment: process.env.NODE_ENV,
+  hasUploadThingToken: !!process.env.UPLOADTHING_TOKEN,
+  hasRedisUrl: !!process.env.REDIS_URL,
+  hasDatabaseUrl: !!process.env.DATABASE_URL
+});
+
+// Verify storage initialization
+try {
+  const storage = getMediaStorage();
+  console.log('Storage initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize storage:', error);
+  process.exit(1);
+}

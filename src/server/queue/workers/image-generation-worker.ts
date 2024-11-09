@@ -85,20 +85,42 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         })
       );
 
-      if (!sequence?.bookId) {
-        throw new Error(`No book ID found for sequence ${sequenceId}`);
+      if (!sequence) {
+        throw new Error(`No sequence found for ${sequenceId}`);
       }
 
       // Generate the image
       console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Starting image generation`);
-      try{
+      try {
         const imageBuffer = await generateImage(sceneDescription);
         console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image generated, buffer size: ${imageBuffer.length}`);
 
-        // Save the image file
+        // Initialize storage with error handling
+        console.log('[Storage] Initializing media storage');
         const storage = getMediaStorage();
-        const imageUrl = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
-        console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image saved: ${imageUrl}`) 
+
+        // Save the image file with retries
+        let imageUrl: string | undefined;
+        await withRetry(async () => {
+          try {
+            if (!sequence.bookId) {
+              throw new Error(`No book ID found for sequence ${sequenceId}`);
+            }
+            imageUrl = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
+            console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image saved successfully: ${imageUrl}`);
+          } catch (error) {
+            console.error('[Storage] Failed to save image:', {
+              error: error instanceof Error ? error.message : 'Unknown error',
+              sequenceId,
+              attempt: 'Retry will be attempted'
+            });
+            throw error; // Trigger retry
+          }
+        }, 3); // Allow up to 3 retries
+
+        if (!imageUrl) {
+          throw new Error('Failed to save image after retries');
+        }
 
         // Save the image URL
         await withRetry(() =>
@@ -142,13 +164,19 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         return { sequenceId, imageUrl };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`[Sequence ${sequenceNumber}/${totalSequences}] Error generating image: ${message}`);
-        //set the sequence to failed
+        console.error(`[Sequence ${sequenceNumber}/${totalSequences}] Error:`, {
+          message,
+          stack: error instanceof Error ? error.stack : undefined,
+          phase: 'image-generation-or-storage'
+        });
+        
         await withRetry(() =>
           db.update(sequences)
             .set({ status: 'failed' })
             .where(eq(sequences.id, sequenceId))
         );
+        
+        throw error;
       }
     } finally {
       await closeDb(db);
