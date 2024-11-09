@@ -50,6 +50,12 @@ async function generateImage(prompt: string, retryCount = 0): Promise<Buffer> {
     console.log('[Image Generation] API response status:', response.status);
     return Buffer.from(response.data as ArrayBuffer);
   } catch (error) {
+
+    //check for content moderation error and if so, don't retry
+    if (error instanceof Error && error.message.includes('Content moderation')) {
+      throw error;
+    }
+
     if (retryCount < 2) {
       console.log(`[Image Generation] API call failed, retrying (attempt ${retryCount + 2}/3)...`);
       await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
@@ -80,63 +86,65 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
 
       // Generate the image
       console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Starting image generation`);
-      const imageBuffer = await generateImage(sceneDescription);
-      console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image generated, buffer size: ${imageBuffer.length}`);
+      try{
+        const imageBuffer = await generateImage(sceneDescription);
+        console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image generated, buffer size: ${imageBuffer.length}`);
 
-      // Save the image file
-      const storage = getMediaStorage();
-      const imageUrl = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
-      console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image saved: ${imageUrl}`);
+        // Save the image file
+        const storage = getMediaStorage();
+        const imageUrl = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
+        console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Image saved: ${imageUrl}`) 
 
-      // Save the image URL
-      await withRetry(() =>
-        db.insert(sequenceMedia)
-          .values({
-            sequenceId,
-            imageUrl,
-            generatedAt: new Date()
-          })
-          .onConflictDoUpdate({
-            target: sequenceMedia.sequenceId,
-            set: {
+        // Save the image URL
+        await withRetry(() =>
+          db.insert(sequenceMedia)
+            .values({
+              sequenceId,
               imageUrl,
               generatedAt: new Date()
-            }
-          })
-      );
+            })
+            .onConflictDoUpdate({
+              target: sequenceMedia.sequenceId,
+              set: {
+                imageUrl,
+                generatedAt: new Date()
+              }
+        }));
 
-      // First mark image as complete
-      await withRetry(() =>
-        db.update(sequences)
-          .set({ status: 'image-complete' })
-          .where(eq(sequences.id, sequenceId))
-      );
-
-      // Check if audio is also complete by checking sequenceMedia
-      const media = await withRetry(() => 
-        db.query.sequenceMedia.findFirst({
-          where: eq(sequenceMedia.sequenceId, sequenceId)
-        })
-      );
-
-      if (media?.audioUrl) {
-        console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Both audio and image complete, marking as completed`);
+        // First mark image as complete
         await withRetry(() =>
           db.update(sequences)
-            .set({ status: 'completed' })
+            .set({ status: 'image-complete' })
+            .where(eq(sequences.id, sequenceId))
+        );
+
+        // Check if audio is also complete by checking sequenceMedia
+        const media = await withRetry(() => 
+          db.query.sequenceMedia.findFirst({
+            where: eq(sequenceMedia.sequenceId, sequenceId)
+          })
+        );
+
+        if (media?.audioUrl) {
+          console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Both audio and image complete, marking as completed`);
+          await withRetry(() =>
+            db.update(sequences)
+              .set({ status: 'completed' })
+              .where(eq(sequences.id, sequenceId))
+          );
+        }
+
+        return { sequenceId, imageUrl };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[Sequence ${sequenceNumber}/${totalSequences}] Error generating image: ${message}`);
+        //set the sequence to failed
+        await withRetry(() =>
+          db.update(sequences)
+            .set({ status: 'failed' })
             .where(eq(sequences.id, sequenceId))
         );
       }
-
-      return { sequenceId, imageUrl };
-    } catch (error) {
-      console.error(`[Sequence ${sequenceNumber}/${totalSequences}] Error:`, error);
-      await withRetry(() =>
-        db.update(sequences)
-          .set({ status: 'failed' })
-          .where(eq(sequences.id, sequenceId))
-      );
-      throw error;
     } finally {
       await closeDb(db);
     }

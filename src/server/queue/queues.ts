@@ -43,7 +43,10 @@ async function setupRepeatableJobs() {
   // Status check job only
   await statusCheckQueue.add(
     'check',
-    { },
+    {
+      type: 'status-check',
+      timestamp: Date.now()
+    },
     {
       repeat: {
         pattern: '0 * * * *' // Every hour

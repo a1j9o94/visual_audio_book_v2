@@ -3,8 +3,6 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { AudioPlayer } from "./_components/AudioPlayer";
 import { type Metadata } from "next";
-import Link from "next/link";
-import { cn } from "~/lib/utils";
 
 type Props = {
   params: {

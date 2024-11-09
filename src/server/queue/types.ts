@@ -40,6 +40,7 @@ export interface BookProcessingJob {
   
   export interface StatusCheckJob {
     type: 'status-check';
+    timestamp: number;
   }
   
   export type JobData =
