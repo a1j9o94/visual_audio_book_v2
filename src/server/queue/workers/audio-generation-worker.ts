@@ -18,6 +18,7 @@ interface AudioGenerationJob {
 
 async function createSpeech(text: string, retryCount = 0): Promise<Response> {
   try {
+    console.log(`[Audio Generation] Creating speech for text length: ${text.length}`);
     return await openai.audio.speech.create({
       model: "tts-1",
       voice: "alloy",
@@ -25,7 +26,7 @@ async function createSpeech(text: string, retryCount = 0): Promise<Response> {
     });
   } catch (error) {
     if (error instanceof APIError && error.status === 429 && retryCount < 2) {
-      console.log(`Rate limit reached, retrying (attempt ${retryCount + 2}/3)...`);
+      console.log(`[Audio Generation] Rate limit reached, retrying (attempt ${retryCount + 2}/3)...`);
       await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
       return createSpeech(text, retryCount + 1);
     }
@@ -41,10 +42,12 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
     
     try {
       // Get the sequence to find its book ID
-      const sequence = await db.query.sequences.findFirst({
-        where: eq(sequences.id, sequenceId),
-        columns: { bookId: true }
-      });
+      const sequence = await withRetry(() => 
+        db.query.sequences.findFirst({
+          where: eq(sequences.id, sequenceId),
+          columns: { bookId: true }
+        })
+      );
 
       if (!sequence?.bookId) {
         throw new Error(`No book ID found for sequence ${sequenceId}`);
@@ -52,7 +55,6 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
 
       // Generate the audio using OpenAI
       console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Generating audio`);
-      console.log(`Creating speech for sequence ${sequenceId}, text length: ${text.length}`);
       const mp3: Response = await createSpeech(text);
       console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Speech generated, converting to buffer`);
       const buffer = Buffer.from(await mp3.arrayBuffer());
@@ -87,9 +89,11 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
       );
 
       // Check if image is also complete by checking sequenceMedia
-      const media = await db.query.sequenceMedia.findFirst({
-        where: eq(sequenceMedia.sequenceId, sequenceId)
-      });
+      const media = await withRetry(() => 
+        db.query.sequenceMedia.findFirst({
+          where: eq(sequenceMedia.sequenceId, sequenceId)
+        })
+      );
 
       if (media?.imageUrl) {
         console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Both audio and image complete, marking as completed`);

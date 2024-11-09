@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { queueOptions, QUEUE_NAMES, repeatableJobOptions } from "./config";
+import { queueOptions, QUEUE_NAMES } from "./config";
 import type { JobData } from "./types";
 
 // Create queues
@@ -38,33 +38,18 @@ export const statusCheckQueue = new Queue<JobData['data']>(
   queueOptions
 );
 
-// Setup repeatable jobs
+// Setup repeatable jobs - only for status check
 async function setupRepeatableJobs() {
-  // Cleanup job
-  await bookProcessingQueue.add(
-    repeatableJobOptions.cleanupJob.jobName,
-    {
-      type: 'cleanup',
-    },
+  // Status check job only
+  await statusCheckQueue.add(
+    'check',
+    { },
     {
       repeat: {
-        pattern: repeatableJobOptions.cleanupJob.pattern
+        pattern: '0 * * * *' // Every hour
       },
-      ...repeatableJobOptions.cleanupJob.options
-    }
-  );
-
-  // Status check job
-  await bookProcessingQueue.add(
-    repeatableJobOptions.statusCheck.jobName,
-    {
-      type: 'status-check',
-    },
-    {
-      repeat: {
-        pattern: repeatableJobOptions.statusCheck.pattern
-      },
-      ...repeatableJobOptions.statusCheck.options
+      removeOnComplete: true,
+      removeOnFail: false,
     }
   );
 }
@@ -80,6 +65,10 @@ export const addJob = async (jobData: JobData) => {
     'cleanup': cleanupQueue,
     'status-check': statusCheckQueue,
   }[jobData.type];
+
+  if (!queue) {
+    throw new Error(`Invalid job type: ${jobData.type}`);
+  }
 
   await queue.add(jobData.type, jobData.data);
 };

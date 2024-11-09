@@ -39,7 +39,7 @@ export function createDb() {
 
 // Helper to close a database connection
 export async function closeDb(db: DrizzleClient) {
-  if (!db) {
+  if (!db || !(db as unknown as DrizzleInternals).$query) {
     return;
   }
   // Cast to our internal interface instead of any

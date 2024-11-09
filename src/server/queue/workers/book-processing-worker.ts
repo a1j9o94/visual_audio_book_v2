@@ -1,9 +1,9 @@
 import { Worker } from "bullmq";
-import { createDb } from "~/server/db/utils";
+import { createDb, closeDb } from "~/server/db/utils";
 import { queueOptions, QUEUE_NAMES } from "../config";
 import { books, sequences } from "~/server/db/schema";
 import { addJob } from "../queues";
-import { eq } from "drizzle-orm";
+import { eq, and, lte, gt } from "drizzle-orm";
 import axios from "axios";
 import { withRetry } from "~/server/db/utils";
 
@@ -13,117 +13,122 @@ interface BookProcessingJob {
   numSequences: number | undefined;
 }
 
-interface SequenceData {
-  content: string;
-  startPosition: number;
-  endPosition: number;
-}
+type SequenceInsert = typeof sequences.$inferInsert;
 
 export const bookProcessingWorker = new Worker<BookProcessingJob>(
   QUEUE_NAMES.BOOK_PROCESSING,
   async (job) => {
     console.log('Starting book processing job:', job.data);
     const { bookId, gutenbergId, numSequences } = job.data;
-
-    const editionUrl = `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.txt`;
-    let bookContent: string;
-    try {
-      console.log('Fetching book content from:', editionUrl);
-      const response = await axios.get<string>(editionUrl, { responseType: 'text' });
-      bookContent = response.data;
-      console.log('Book content length:', bookContent.length);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error in bookProcessingWorker for book ${bookId}:`, {
-        error: errorMessage,
-        jobData: job.data,
-        timestamp: new Date().toISOString()
-      });
-      throw new Error(`Failed to fetch book content: ${errorMessage}. URL: ${editionUrl}`);
-    }
-
-    if (!bookContent || bookContent.length === 0) {
-      throw new Error('Retrieved book content is empty');
-    }
-
-    // Split into sequences
-    const sequenceLength = 50; // words
-    const words: string[] = bookContent.split(/\s+/).filter(word => word.length > 0);
-    console.log(`Total words found: ${words.length}, requested sequences: ${numSequences}`);
-
-    const maxPossibleSequences = Math.floor(words.length / sequenceLength);
-    const actualLimit = Math.min(numSequences ?? maxPossibleSequences, maxPossibleSequences);
-    
-    console.log(`Will create ${actualLimit} sequences (max possible: ${maxPossibleSequences})`);
-
-    const sequencesData: SequenceData[] = [];
-    for (let i = 0; i < actualLimit; i++) {
-      const start = i * sequenceLength;
-      const end = (i + 1) * sequenceLength;
-      const sequenceWords = words.slice(start, end);
-      sequencesData.push({
-        content: sequenceWords.join(' '),
-        startPosition: start,
-        endPosition: start + sequenceWords.length,
-      });
-    }
-
-    console.log(`Created ${sequencesData.length} sequence chunks`);
-    
     const db = createDb();
 
     try {
-      // Create sequences in database and queue for processing
-      for (let i = 0; i < sequencesData.length; i++) {
-        const sequence = sequencesData[i];
-        if (!sequence) {
-          console.error(`Sequence data is undefined for index ${i}`);
-          continue;
-        }
-        
-        console.log(`Processing sequence ${i + 1}/${actualLimit}`);
-        
-        const [sequenceRecord] = await db.insert(sequences).values({
-          bookId,
-          sequenceNumber: i,
-          content: sequence.content,
-          startPosition: sequence.startPosition,
-          endPosition: sequence.endPosition,
-          status: 'pending',
-        }).returning();
+      // Check if book already has sequences
+      const existingSequences = await db.query.sequences.findMany({
+        where: eq(sequences.bookId, bookId),
+        orderBy: (sequences, { desc }) => [desc(sequences.sequenceNumber)],
+      });
 
-        if (!sequenceRecord) {
-          console.error(`Failed to create sequence record for index ${i}`);
-          continue;
+      if (existingSequences.length === 0) {
+        // First time processing - fetch and split book content
+        const editionUrl = `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.txt`;
+        console.log('Fetching book content from:', editionUrl);
+        const response = await axios.get<string>(editionUrl, { responseType: 'text' });
+        const bookContent = response.data;
+
+        if (!bookContent || bookContent.length === 0) {
+          throw new Error('Retrieved book content is empty');
         }
 
-        console.log(`[Sequence ${i + 1}/${actualLimit}] Created with ID: ${sequenceRecord.id}`);
+        // Split into sequences
+        const sequenceLength = 50; // words
+        const words = bookContent.split(/\s+/).filter(word => word.length > 0);
+        console.log(`Total words found: ${words.length}`);
 
-        // Queue sequence for processing
-        await addJob({
-          type: 'sequence-processing',
-          data: {
-            sequenceId: sequenceRecord.id,
+        // Prepare all sequence records
+        const sequenceRecords: SequenceInsert[] = [];
+        for (let i = 0; i < words.length; i += sequenceLength) {
+          const sequenceWords = words.slice(i, i + sequenceLength);
+          sequenceRecords.push({
             bookId,
-            content: sequence.content,
-            sequenceNumber: i + 1,
-            totalSequences: actualLimit
-          },
+            sequenceNumber: Math.floor(i / sequenceLength),
+            content: sequenceWords.join(' '),
+            startPosition: i,
+            endPosition: i + sequenceWords.length,
+            status: 'pending',
+          });
+        }
+
+        // Use transaction and batch insert for better performance
+        await withRetry(() => 
+          db.transaction(async (tx) => {
+            // Insert sequences in chunks to avoid hitting database limits
+            const chunkSize = 1000;
+            for (let i = 0; i < sequenceRecords.length; i += chunkSize) {
+              const chunk = sequenceRecords.slice(i, i + chunkSize);
+              await tx.insert(sequences).values(chunk);
+            }
+          })
+        );
+
+        console.log(`Created ${sequenceRecords.length} sequence records`);
+      }
+
+      // Process the requested number of pending sequences
+      if (numSequences) {
+        const lastProcessedSequence = existingSequences.find(seq => 
+          seq.status !== 'pending' && seq.status !== 'failed'
+        );
+        
+        const lastProcessedNumber = lastProcessedSequence 
+          ? lastProcessedSequence.sequenceNumber 
+          : -1;
+
+        const sequencesToProcess = await db.query.sequences.findMany({
+          where: and(
+            eq(sequences.bookId, bookId),
+            eq(sequences.status, 'pending'),
+            gt(sequences.sequenceNumber, lastProcessedNumber),
+            lte(sequences.sequenceNumber, lastProcessedNumber + numSequences)
+          ),
+          orderBy: (sequences, { asc }) => [asc(sequences.sequenceNumber)],
         });
 
-        console.log(`[Sequence ${i + 1}/${actualLimit}] Queued for processing`);
+        console.log(`Processing ${sequencesToProcess.length} sequences`);
+
+        // Queue sequences for processing
+        for (const sequence of sequencesToProcess) {
+          await addJob({
+            type: 'sequence-processing',
+            data: {
+              sequenceId: sequence.id,
+              bookId,
+              content: sequence.content,
+              sequenceNumber: sequence.sequenceNumber + 1,
+              totalSequences: numSequences,
+            },
+          });
+        }
       }
 
       // Update book status
       await withRetry(() =>
         db.update(books)
-          .set({ status: 'processed' })
+          .set({ status: numSequences ? 'processing' : 'text-ready' })
           .where(eq(books.id, bookId))
       );
 
-      console.log(`Completed processing book ${bookId} with ${actualLimit} sequences`);
+      console.log(`Completed processing for book ${bookId}`);
     } catch (error) {
       console.error(`Error in bookProcessingWorker for book ${bookId}:`, error);
+      await withRetry(() =>
+        db.update(books)
+          .set({ status: 'failed' })
+          .where(eq(books.id, bookId))
+      );
+      throw error;
+    } finally {
+      await closeDb(db);
     }
   },
   queueOptions

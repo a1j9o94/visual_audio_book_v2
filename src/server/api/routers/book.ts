@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { books, userBookProgress } from "~/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import { books, userBookProgress, sequences, sequenceMedia, sequenceMetadata } from "~/server/db/schema";
+import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import axios from "axios";
 
@@ -15,45 +15,57 @@ interface OpenLibraryBook {
 
 export const bookRouter = createTRPCRouter({
   getAll: publicProcedure.query(async ({ ctx }) => {
-    const books = await ctx.db.query.books.findMany({
-      orderBy: (books, { desc }) => [desc(books.createdAt)],
+    const allBooks = await ctx.db.query.books.findMany({
+      orderBy: [desc(books.createdAt)],
+      with: {
+        userProgress: true,
+      }
     });
     
-    console.log('GetAll books:', books);
+    console.log('GetAll books:', allBooks);
     
-    return books;
+    return allBooks;
   }),
 
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.string())
-    .query(async ({ ctx, input: bookId }) => {
+    .query(async ({ ctx, input }) => {
+      console.log('Getting book by id:', input);
       const book = await ctx.db.query.books.findFirst({
-        where: eq(books.id, bookId),
+        where: eq(books.id, input),
         with: {
-          sequences: {
-            orderBy: (sequences, { asc }) => [asc(sequences.sequenceNumber)],
-          },
-        },
+          userProgress: true,
+        }
       });
 
-      if (!book) {
-        throw new TRPCError({ 
-          code: "NOT_FOUND",
-          message: "Book not found" 
-        });
-      }
+      if (!book) return null;
+      console.log('Book found:', book);
 
-      if (ctx.session?.user) {
-        const progress = await ctx.db.query.userBookProgress.findFirst({
-          where: and(
-            eq(userBookProgress.bookId, bookId),
-            eq(userBookProgress.userId, ctx.session.user.id)
-          ),
-        });
-        return { ...book, userProgress: progress };
-      }
+      const bookSequences = await ctx.db.select({
+        sequence: sequences,
+        media: sequenceMedia,
+        metadata: sequenceMetadata,
+      })
+        .from(sequences)
+        .leftJoin(
+          sequenceMedia,
+          eq(sequences.id, sequenceMedia.sequenceId),
+        )
+        .leftJoin(
+          sequenceMetadata,
+          eq(sequences.id, sequenceMetadata.sequenceId),
+        )
+        .where(and(
+          eq(sequences.bookId, input),
+          isNotNull(sequenceMedia.audioUrl),
+          isNotNull(sequenceMedia.imageUrl)
+        ))
+        .orderBy(desc(sequences.sequenceNumber));
 
-      return { ...book, userProgress: null };
+      return {
+        ...book,
+        sequences: bookSequences
+      };
     }),
 
   create: protectedProcedure
@@ -70,7 +82,7 @@ export const bookRouter = createTRPCRouter({
         author: input.author,
         coverImageUrl: input.coverImageUrl,
         status: "pending",
-      });
+      }).returning();
     }),
 
   search: publicProcedure
@@ -92,9 +104,6 @@ export const bookRouter = createTRPCRouter({
             book.gutenbergId !== null && book.gutenbergId !== undefined
           );
 
-        console.log("Books with Gutenberg:", booksWithGutenberg);
-        console.log('API Response Docs:', response.data.docs);
-
         return booksWithGutenberg;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
@@ -113,13 +122,11 @@ export const bookRouter = createTRPCRouter({
       coverId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Check if book already exists
       const existingBook = await ctx.db.query.books.findFirst({
         where: eq(books.gutenbergId, input.gutenbergId),
       });
 
       if (existingBook) {
-        // Check if user already has this book
         const userProgress = await ctx.db.query.userBookProgress.findFirst({
           where: and(
             eq(userBookProgress.bookId, existingBook.id),
@@ -134,7 +141,6 @@ export const bookRouter = createTRPCRouter({
           });
         }
 
-        // Add book to user's library
         await ctx.db.insert(userBookProgress).values({
           userId: ctx.session.user.id,
           bookId: existingBook.id,
@@ -144,7 +150,6 @@ export const bookRouter = createTRPCRouter({
         return existingBook;
       }
 
-      // Create new book without processing
       const coverImageUrl = input.coverId 
         ? `https://covers.openlibrary.org/b/id/${input.coverId}-L.jpg`
         : undefined;
@@ -154,7 +159,7 @@ export const bookRouter = createTRPCRouter({
         title: input.title,
         author: input.author,
         coverImageUrl,
-        status: "pending", // We'll process it later
+        status: "pending",
       }).returning();
 
       if (!book) {
@@ -164,7 +169,6 @@ export const bookRouter = createTRPCRouter({
         });
       }
 
-      // Add initial progress record for user
       await ctx.db.insert(userBookProgress).values({
         userId: ctx.session.user.id,
         bookId: book.id,

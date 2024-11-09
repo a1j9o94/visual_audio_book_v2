@@ -1,0 +1,1 @@
+We are using strict ES lint rules for all the code avoid any warnings such as: Unsafe assignment of an error typed value.eslint@typescript-eslint/no-unsafe-assignment
