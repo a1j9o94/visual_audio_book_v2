@@ -49,7 +49,7 @@ async function setupRepeatableJobs() {
     },
     {
       repeat: {
-        pattern: '0 * * * *' // Every hour
+        pattern: '0 */6 * * *' // Every 6 hours
       },
       removeOnComplete: true,
       removeOnFail: false,

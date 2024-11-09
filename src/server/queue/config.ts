@@ -9,8 +9,8 @@ export const queueOptions = {
   connection,
   defaultJobOptions: {
     removeOnComplete: true,
-    removeOnFail: false,
-    attempts: 3,
+    removeOnFail: true,
+    attempts: 2,
     backoff: {
       type: 'exponential',
       delay: 1000,
