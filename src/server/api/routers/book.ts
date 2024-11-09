@@ -182,7 +182,7 @@ export const bookRouter = createTRPCRouter({
   processSequences: protectedProcedure
     .input(z.object({ bookId: z.string(), numSequences: z.number().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { bookId, numSequences = 10 } = input;
+      const { bookId, numSequences = 1 } = input;
 
       const book = await ctx.db.query.books.findFirst({
         where: eq(books.id, bookId),

@@ -61,6 +61,13 @@ export default async function BookPage({ params }: PageProps) {
                     </p>
                   </div>
                 )}
+                <div className="mt-4">
+                  <ProcessSequencesButton 
+                    bookId={book.id} 
+                    numSequences={1}
+                    variant="secondary"
+                  />
+                </div>
               </div>
             </div>
 

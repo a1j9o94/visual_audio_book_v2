@@ -3,8 +3,19 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 
+interface ProcessSequencesButtonProps {
+  bookId: string;
+  numSequences?: number;
+  variant?: 'primary' | 'secondary';
+  className?: string;
+}
 
-export function ProcessSequencesButton({ bookId }: { bookId: string }) {
+export function ProcessSequencesButton({ 
+  bookId, 
+  numSequences = 3,
+  variant = 'primary',
+  className = ''
+}: ProcessSequencesButtonProps) {
   const [error, setError] = useState<string | null>(null);
 
   const mutation = api.book.processSequences.useMutation({
@@ -16,17 +27,25 @@ export function ProcessSequencesButton({ bookId }: { bookId: string }) {
 
   const handleClick = () => {
     setError(null);
-    mutation.mutate({ bookId });
+    mutation.mutate({
+      bookId,
+      numSequences
+    });
   };
+
+  const baseStyles = "rounded px-4 py-2 text-white disabled:bg-gray-400";
+  const variantStyles = variant === 'primary' 
+    ? "bg-blue-500 hover:bg-blue-600" 
+    : "bg-gray-500 hover:bg-gray-600";
 
   return (
     <div>
       <button
         onClick={handleClick}
         disabled={mutation.isPending}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:bg-gray-400"
+        className={`${baseStyles} ${variantStyles} ${className}`}
       >
-        {mutation.isPending ? "Processing..." : "Process Sequences"}
+        {mutation.isPending ? "Processing..." : numSequences === 1 ? "Generate Next Sequence" : "Process Sequences"}
       </button>
       {error && <p className="mt-2 text-red-500">{error}</p>}
     </div>
