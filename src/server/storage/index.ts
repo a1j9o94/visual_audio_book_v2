@@ -123,6 +123,78 @@ function validateUploadThingToken(token: string | undefined): void {
 // Use it during initialization
 validateUploadThingToken(process.env.UPLOADTHING_TOKEN);
 
+// Add this type definition for supported mime types
+type SupportedMimeType = 'audio/mpeg' | 'image/png';
+
+// New helper function for file uploads
+async function uploadFileToUploadThing(
+  bookId: string, 
+  sequenceId: string, 
+  buffer: Buffer, 
+  mimeType: SupportedMimeType,
+  fileExtension: string,
+  utapi: UTApi
+): Promise<string> {
+  console.log('[Storage] Starting file upload:', {
+    bookId,
+    sequenceId,
+    bufferSize: buffer.length,
+    mimeType,
+    hasUtApi: !!utapi
+  });
+
+  try {
+    // Create a proper Blob object that matches the expected type
+    const blob = new Blob([buffer], { type: mimeType }) as unknown as File & {
+      name: string;
+      lastModified?: number;
+    };
+    
+    // Add required properties to make it FileEsque
+    Object.defineProperties(blob, {
+      name: {
+        value: `${sequenceId}.${fileExtension}`,
+        writable: false
+      },
+      lastModified: {
+        value: Date.now(),
+        writable: false
+      }
+    });
+
+    console.log('[Storage] Initiating upload to UploadThing');
+    const uploadResponse = await utapi.uploadFiles([blob]);
+    if(!uploadResponse || uploadResponse.length === 0) {
+      throw new Error('Upload failed - no response');
+    }
+    if(!uploadResponse[0]) {
+      throw new Error('Upload failed - no array response');
+    }
+    
+    console.log('[Storage] Raw upload response:', {
+      response: JSON.stringify(uploadResponse),
+      error: uploadResponse[0].error,
+      data: uploadResponse[0].data
+    });
+    
+    if (!uploadResponse[0].data?.url) {
+      throw new Error('Upload failed - no URL in response');
+    }
+
+    return uploadResponse[0].data.url;
+  } catch (error) {
+    console.error('[Storage] File upload error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      bookId,
+      sequenceId,
+      mimeType,
+      isUploadThingError: error instanceof Error && error.message.includes('UploadThing')
+    });
+    throw error;
+  }
+}
+
 // Uploadthing storage implementation
 export class UploadthingMediaStorage implements MediaStorage {
   private utapi: UTApi;
@@ -132,121 +204,25 @@ export class UploadthingMediaStorage implements MediaStorage {
   }
 
   async saveAudio(bookId: string, sequenceId: string, buffer: Buffer): Promise<string> {
-    console.log('[Storage] Starting audio upload:', {
+    return uploadFileToUploadThing(
       bookId,
       sequenceId,
-      bufferSize: buffer.length,
-      hasUtApi: !!this.utapi
-    });
-
-    try {
-      // Create a proper Blob object that matches the expected type
-      const blob = new Blob([buffer], { type: 'audio/mpeg' }) as unknown as File & {
-        name: string;
-        lastModified?: number;
-      };
-      
-      // Add required properties to make it FileEsque
-      Object.defineProperties(blob, {
-        name: {
-          value: `${sequenceId}.mp3`,
-          writable: false
-        },
-        lastModified: {
-          value: Date.now(),
-          writable: false
-        }
-      });
-
-      console.log('[Storage] Initiating upload to UploadThing');
-      const uploadResponse = await this.utapi.uploadFiles([blob]);
-      if(!uploadResponse || uploadResponse.length === 0) {
-        throw new Error('Upload failed - no response');
-      }
-      if(!uploadResponse[0]) {
-        throw new Error('Upload failed - no array response');
-      }
-      
-      console.log('[Storage] Raw upload response:', {
-        response: JSON.stringify(uploadResponse),
-        error: uploadResponse[0].error,
-        data: uploadResponse[0].data
-      });
-      
-      if (!uploadResponse[0].data?.url) {
-        throw new Error('Upload failed - no URL in response');
-      }
-
-      return uploadResponse[0].data.url;
-    } catch (error) {
-      console.error('[Storage] Audio upload error:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        bookId,
-        sequenceId,
-        isUploadThingError: error instanceof Error && error.message.includes('UploadThing')
-      });
-      throw error;
-    }
+      buffer,
+      'audio/mpeg',
+      'mp3',
+      this.utapi
+    );
   }
 
   async saveImage(bookId: string, sequenceId: string, buffer: Buffer): Promise<string> {
-    console.log('[Storage] Starting image upload:', {
+    return uploadFileToUploadThing(
       bookId,
       sequenceId,
-      bufferSize: buffer.length,
-      hasUtApi: !!this.utapi
-    });
-    
-    try {
-      // Create a proper Blob object that matches the expected type
-      const blob = new Blob([buffer], { type: 'image/png' }) as unknown as File & {
-        name: string;
-        lastModified?: number;
-      };
-      
-      // Add required properties to make it FileEsque
-      Object.defineProperties(blob, {
-        name: {
-          value: `${sequenceId}.png`,
-          writable: false
-        },
-        lastModified: {
-          value: Date.now(),
-          writable: false
-        }
-      });
-
-      console.log('[Storage] Initiating upload to UploadThing');
-      const uploadResponse = await this.utapi.uploadFiles([blob]);
-      if(!uploadResponse || uploadResponse.length === 0) {
-        throw new Error('Upload failed - no response');
-      }
-      if(!uploadResponse[0]) {
-        throw new Error('Upload failed - no array response');
-      }
-
-      console.log('[Storage] Raw upload response:', {
-        response: JSON.stringify(uploadResponse),
-        error: uploadResponse[0].error,
-        data: uploadResponse[0].data
-      });
-      
-      if (!uploadResponse[0].data?.url) {
-        throw new Error('Upload failed - no URL in response');
-      }
-
-      return uploadResponse[0].data.url;
-    } catch (error) {
-      console.error('[Storage] Image upload error:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        bookId,
-        sequenceId,
-        isUploadThingError: error instanceof Error && error.message.includes('UploadThing')
-      });
-      throw error;
-    }
+      buffer,
+      'image/png',
+      'png',
+      this.utapi
+    );
   }
 
   async getAudioUrl(sequenceId: string): Promise<string> {
