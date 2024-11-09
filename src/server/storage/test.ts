@@ -56,7 +56,7 @@ async function testStorage() {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Verify audio URL is retrievable
-    const retrievedAudioUrl = await storage.getAudioUrl(testBookId, mockSequenceId);
+    const retrievedAudioUrl = await storage.getAudioUrl(mockSequenceId);
     console.log('Audio URL retrieved:', retrievedAudioUrl);
     
     // Test programmatic image upload
@@ -68,7 +68,7 @@ async function testStorage() {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Verify image URL is retrievable
-    const retrievedImageUrl = await storage.getImageUrl(testBookId, mockSequenceId);
+    const retrievedImageUrl = await storage.getImageUrl(mockSequenceId);
     console.log('Image URL retrieved:', retrievedImageUrl);
 
   } catch (error) {

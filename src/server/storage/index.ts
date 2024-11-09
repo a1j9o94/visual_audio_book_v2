@@ -20,7 +20,7 @@ function getUtApi() {
   if (!utapiInstance) {
     console.log('Initializing UploadThing API with config:', {
       hasToken: !!process.env.UPLOADTHING_TOKEN,
-      tokenLength: process.env.UPLOADTHING_TOKEN?.length || 0,
+      tokenLength: process.env.UPLOADTHING_TOKEN?.length ?? 0,
       environment: process.env.NODE_ENV
     });
 
@@ -90,8 +90,8 @@ export type OurFileRouter = typeof uploadRouter;
 interface MediaStorage {
   saveAudio(bookId: string, sequenceId: string, buffer: Buffer): Promise<string>;
   saveImage(bookId: string, sequenceId: string, buffer: Buffer): Promise<string>;
-  getAudioUrl(bookId: string, sequenceId: string): Promise<string>;
-  getImageUrl(bookId: string, sequenceId: string): Promise<string>;
+  getAudioUrl(sequenceId: string): Promise<string>;
+  getImageUrl(sequenceId: string): Promise<string>;
 }
 
 function validateUploadThingToken(token: string | undefined): void {
@@ -246,7 +246,7 @@ export class UploadthingMediaStorage implements MediaStorage {
     }
   }
 
-  async getAudioUrl(bookId: string, sequenceId: string): Promise<string> {
+  async getAudioUrl(sequenceId: string): Promise<string> {
     const result = await db.query.sequenceMedia.findFirst({
       where: eq(sequenceMedia.sequenceId, sequenceId),
       columns: { audioUrl: true }
@@ -259,7 +259,7 @@ export class UploadthingMediaStorage implements MediaStorage {
     return result.audioUrl;
   }
 
-  async getImageUrl(bookId: string, sequenceId: string): Promise<string> {
+  async getImageUrl(sequenceId: string): Promise<string> {
     const result = await db.query.sequenceMedia.findFirst({
       where: eq(sequenceMedia.sequenceId, sequenceId),
       columns: { imageUrl: true }

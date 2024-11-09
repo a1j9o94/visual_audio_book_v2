@@ -9,6 +9,7 @@ import {
   cleanupWorker,
   statusCheckWorker,
 } from './workers';
+import { getMediaStorage } from '~/server/storage';
 
 // Initialize and verify UploadThing configuration
 const utapi = new UTApi({
@@ -156,7 +157,7 @@ console.log('Worker starting with configuration:', {
 // Verify storage initialization
 try {
   const storage = getMediaStorage();
-  console.log('Storage initialized successfully');
+  console.log('Storage initialized successfully', storage);
 } catch (error) {
   console.error('Failed to initialize storage:', error);
   process.exit(1);
