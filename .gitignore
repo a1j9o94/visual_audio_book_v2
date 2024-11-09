@@ -44,3 +44,6 @@ yarn-error.log*
 
 # idea files
 .idea
+
+#any document called log.txt anywhere
+log.txt
