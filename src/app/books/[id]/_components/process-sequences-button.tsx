@@ -2,42 +2,33 @@
 
 import { useState } from "react";
 import { api } from "~/trpc/react";
-import { useRouter } from "next/navigation";
 
-interface ProcessSequencesButtonProps {
-  bookId: string;
-}
 
-export function ProcessSequencesButton({ bookId }: ProcessSequencesButtonProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const router = useRouter();
+export function ProcessSequencesButton({ bookId }: { bookId: string }) {
+  const [error, setError] = useState<string | null>(null);
 
-  const processSequences = api.book.processSequences.useMutation({
-    onSuccess: () => {
-      router.refresh();
-    },
-    onError: (error) => {
-      console.error('Failed to process sequences:', error);
-      alert(error.message);
-      setIsProcessing(false);
+  const mutation = api.book.processSequences.useMutation({
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     },
   });
 
-  const handleProcess = async () => {
-    setIsProcessing(true);
-    processSequences.mutate({
-      bookId,
-      numSequences: 10, // Default to 10 sequences
-    });
+  const handleClick = () => {
+    setError(null);
+    mutation.mutate({ bookId });
   };
 
   return (
-    <button
-      onClick={handleProcess}
-      disabled={isProcessing}
-      className="rounded-lg bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {isProcessing ? 'Processing...' : 'Generate Sequences'}
-    </button>
+    <div>
+      <button
+        onClick={handleClick}
+        disabled={mutation.isPending}
+        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:bg-gray-400"
+      >
+        {mutation.isPending ? "Processing..." : "Process Sequences"}
+      </button>
+      {error && <p className="mt-2 text-red-500">{error}</p>}
+    </div>
   );
 } 

@@ -5,7 +5,6 @@ import { auth } from "~/server/auth";
 import { type Metadata } from "next";
 import { ProcessSequencesButton } from "./_components/process-sequences-button";
 import Link from "next/link";
-import { cn } from "~/lib/utils";
 
 type Params = Promise<{
   id: string;

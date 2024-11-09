@@ -7,17 +7,26 @@ import { withRetry } from "~/server/db/utils";
 
 interface StatusCheckJob {
   type: 'status-check';
+  timestamp: number;
 }
 
 export const statusCheckWorker = new Worker<StatusCheckJob>(
   QUEUE_NAMES.STATUS_CHECK,
   async (job) => {
+    
     console.log('Status check job started', job.id);
     const db = createDb();
     
     try {
+      const timestamp = job.data.timestamp;
+      if (!timestamp) {
+        throw new Error('Timestamp is required');
+      }
+      
+      console.log('Job triggered at', new Date(timestamp).toISOString());
+      
       // Find stuck sequences (in processing state for more than 15 minutes)
-      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+      const fifteenMinutesAgo = new Date(timestamp - 15 * 60 * 1000);
       
       const stuckSequences = await withRetry(() => 
         db.query.sequences.findMany({

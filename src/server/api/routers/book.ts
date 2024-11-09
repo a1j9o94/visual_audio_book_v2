@@ -4,6 +4,7 @@ import { books, userBookProgress, sequences, sequenceMedia, sequenceMetadata } f
 import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import axios from "axios";
+import { addJob } from "~/server/queue/queues";
 
 interface OpenLibraryBook {
   title: string;
@@ -176,5 +177,33 @@ export const bookRouter = createTRPCRouter({
       });
 
       return book;
+    }),
+
+  processSequences: protectedProcedure
+    .input(z.object({ bookId: z.string(), numSequences: z.number().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { bookId, numSequences = 10 } = input;
+
+      const book = await ctx.db.query.books.findFirst({
+        where: eq(books.id, bookId),
+      });
+
+      if (!book) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Book with id ${bookId} not found`,
+        });
+      }
+
+      await addJob({
+        type: 'book-processing',
+        data: {
+          bookId: book.id,
+          gutenbergId: book.gutenbergId ?? '',
+          numSequences,
+        },
+      });
+
+      return { success: true };
     }),
 }); 

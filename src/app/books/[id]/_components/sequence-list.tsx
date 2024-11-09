@@ -27,14 +27,13 @@ export function SequenceList({ bookId, initialSequences }: SequenceListProps) {
   const loadMore = async () => {
     setIsLoading(true);
     const nextPage = page + 1;
-    const result = await api.book.getById.mutate({ 
-      id: bookId, 
-      page: nextPage,
-      limit: 10 
-    });
+    const result = api.sequence.getByBookId.useQuery(bookId);
     
-    if (result?.sequences) {
-      setSequences([...sequences, ...result.sequences]);
+    if (result?.data) {
+      const newSequences = result.data.map(item => 
+        'sequence' in item ? item.sequence : item
+      ) as Sequence[];
+      setSequences([...sequences, ...newSequences]);
       setPage(nextPage);
     }
     setIsLoading(false);
@@ -47,7 +46,7 @@ export function SequenceList({ bookId, initialSequences }: SequenceListProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-y-auto pr-4" style={{ maxHeight: "calc(100vh - 12rem)" }}>
+      <div className="overflow-y-auto pr-4 sequence-list-container">
         <div className="grid gap-4">
           {sequences.map((sequence) => (
             <div
