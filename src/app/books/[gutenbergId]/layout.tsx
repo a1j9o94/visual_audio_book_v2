@@ -3,6 +3,7 @@ import { cn } from "~/lib/utils";
 import { type ReactNode } from "react";
 import { api } from "~/trpc/server";
 import { notFound } from "next/navigation";
+import { ProcessSequencesButton } from "./_components/process-sequences-button";
 
 type Props = {
   children: ReactNode;
@@ -11,6 +12,8 @@ type Props = {
     sequenceNumber: string;
   }>;
 };
+
+// Add this type definition (adjust according to your actual sequence type)
 
 export default async function BookLayout({ children, params }: Props) {
   const resolvedParams = await params;
@@ -35,6 +38,9 @@ export default async function BookLayout({ children, params }: Props) {
   }
   //check if we have access to the seauence number if we do, it's a sequence page. This is a server compoonent. We can't use pathname
   const isSequencePage = resolvedParams.sequenceNumber !== undefined;
+
+  const sequences = await api.sequence.getByBookId(bookId);
+  const completeSequences = sequences.filter(seq => seq.status === "completed").length;
 
   return (
     <div className="flex flex-col">
@@ -61,6 +67,16 @@ export default async function BookLayout({ children, params }: Props) {
             >
               {book.title}
             </Link>
+            <div className="ml-auto flex items-center space-x-4">
+              <span className="text-sm text-white/80">
+                {completeSequences} sequences complete
+              </span>
+              <ProcessSequencesButton 
+                bookId={bookId} 
+                numSequences={5}
+                variant="secondary"
+              />
+            </div>
           </div>
         </div>
       </nav>

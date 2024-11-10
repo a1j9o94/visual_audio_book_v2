@@ -3,7 +3,6 @@ import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { sequences, userSequenceHistory, sequenceMedia, sequenceMetadata, userBookProgress } from "~/server/db/schema";
 import { eq, and, asc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { randomUUID } from 'crypto';
 
 // Helper function to create data URLs
 function createMediaUrls(media: typeof sequenceMedia.$inferSelect | null) {

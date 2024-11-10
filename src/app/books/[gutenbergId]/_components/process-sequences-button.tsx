@@ -45,7 +45,7 @@ export function ProcessSequencesButton({
         disabled={mutation.isPending}
         className={`${baseStyles} ${variantStyles} ${className}`}
       >
-        {mutation.isPending ? "Processing..." : numSequences === 1 ? "Generate Next Sequence" : "Process Sequences"}
+        {mutation.isPending ? "Processing..." : numSequences === 1 ? "Generate Next Sequence" : `Process ${numSequences} sequences`}
       </button>
       {error && <p className="mt-2 text-red-500">{error}</p>}
     </div>

@@ -9,7 +9,8 @@ type Params = {
 };
 
 type PageProps = {
-  params: Params;
+  params: Promise<Params>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 // Define the type that matches what the API returns
@@ -52,7 +53,8 @@ export default async function BookPlayPage({ params }: PageProps) {
   }
 
   try {
-    const { gutenbergId } = params;
+    const resolvedParams = await params;
+    const { gutenbergId } = resolvedParams;
     if (!gutenbergId) {
       notFound();
     }
@@ -100,7 +102,7 @@ export default async function BookPlayPage({ params }: PageProps) {
           <SequencePlayer 
             sequences={sequences}
             initialSequence={lastSequenceNumber}
-            bookId={book.id}
+            gutenbergId={gutenbergId}
           />
         </div>
       </main>
@@ -113,7 +115,7 @@ export default async function BookPlayPage({ params }: PageProps) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
-    const { gutenbergId } = params;
+    const { gutenbergId } = await params;
     
     if (!gutenbergId) {
       return {

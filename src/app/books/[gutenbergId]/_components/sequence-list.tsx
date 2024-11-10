@@ -24,36 +24,25 @@ export function SequenceList({ gutenbergId, initialSequences }: SequenceListProp
   const [sequences, setSequences] = useState<Sequence[]>(initialSequences);
   const [isLoading, setIsLoading] = useState(false);
 
+  const bookIdQuery = api.book.getBookIdByGutenbergId.useQuery(gutenbergId);
+
   const loadMore = async () => {
     setIsLoading(true);
     const nextPage = page + 1;
     try {
-
-      if(!api.book.getBookIdByGutenbergId) {
-        console.error('Endpoint not found');
-        return;
-      }
-
-      //@ts-expect-error gutenbergId is not typed
-      const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
-
-      if (!bookId) {
-        console.error('Book ID not found');
-        return;
-      }
-
-      const result = api.sequence.getByBookId.useQuery(bookId);
-      
-      if (result?.data) {
-        const newSequences = result.data.map(item => 
-          'sequence' in item ? item.sequence : item
-        ) as Sequence[];
-        setSequences([...sequences, ...newSequences]);
-        setPage(nextPage);
+      if (bookIdQuery.data) {
+        const result = api.sequence.getByBookId.useQuery(bookIdQuery.data);
+        
+        if (result?.data) {
+          const newSequences = result.data.map(item => 
+            'sequence' in item ? item.sequence : item
+          ) as Sequence[];
+          setSequences([...sequences, ...newSequences]);
+          setPage(nextPage);
+        }
       }
     } catch (error) {
-      console.error('Error fetching book ID:', error);
-      return;
+      console.error('Error loading more sequences:', error);
     }
     setIsLoading(false);
   };

@@ -30,6 +30,8 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
 
   const updateProgress = api.sequence.updateProgress.useMutation();
 
+  const bookIdQuery = api.book.getBookIdByGutenbergId.useQuery(gutenbergId);
+
   useEffect(() => {
     // Find the starting index based on initialSequence
     const startIndex = sequences.findIndex(seq => 
@@ -43,7 +45,6 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
   useEffect(() => {
     if (!audioRef.current) return;
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const audio = audioRef.current;
 
     const handleEnded = () => {
@@ -53,17 +54,17 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
     };
 
     const handleTimeUpdate = () => {
-      if (!audio || !gutenbergId) return;
+      if (!audio || !bookIdQuery.data || !currentSequence) return;
 
       if (currentIndex >= sequences.length - 1 && audio.currentTime >= audio.duration - 0.1) {
-        // Save final progress and redirect
-
-        //check if sequenceId exists
-        if(!sequences[sequences.length - 1]?.id) {
+        const lastSequence = sequences[sequences.length - 1];
+        if (!lastSequence?.id) {
           throw new Error('Sequence ID not found');
         }
+        
         updateProgress.mutate({
-          sequenceId: sequences[sequences.length - 1]?.id,
+          bookId: bookIdQuery.data,
+          sequenceId: lastSequence.id,
           timeSpent: Math.floor(audio.duration),
           completed: true
         }, {
@@ -75,6 +76,7 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
       }
       
       updateProgress.mutate({
+        bookId: bookIdQuery.data,
         sequenceId: currentSequence.id,
         timeSpent: Math.floor(audio.currentTime),
         completed: false
@@ -88,7 +90,7 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
     };
-  }, [currentIndex, sequences.length, currentSequence.id, updateProgress]);
+  }, [currentIndex, sequences.length, currentSequence?.id, updateProgress, bookIdQuery.data, gutenbergId, router, sequences, currentSequence]);
 
   const togglePlayPause = () => {
     if (audioRef.current) {
@@ -100,6 +102,14 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
       setIsPlaying(!isPlaying);
     }
   };
+
+  if (!currentSequence) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-gray-400">Loading sequence...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center">
