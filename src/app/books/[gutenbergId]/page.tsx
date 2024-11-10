@@ -20,7 +20,7 @@ type PageProps = {
 export default async function BookPage({ params }: PageProps) {
   const session = await auth();
   if (!session) {
-    redirect(`/?returnUrl=/books/${(await params).gutenbergId}`);
+    redirect(`/login?returnUrl=/books/${(await params).gutenbergId}`);
   }
   const { gutenbergId } = await params;
   

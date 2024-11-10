@@ -28,7 +28,7 @@ export default async function BookSequencePage({ params }: PageProps) {
   const session = await auth();
   if (!session) {
     const { gutenbergId, sequence_number } = await params;
-    redirect(`/?returnUrl=/books/${gutenbergId}/${sequence_number}`);
+    redirect(`/login?returnUrl=/books/${gutenbergId}/${sequence_number}`);
   }
 
   try {

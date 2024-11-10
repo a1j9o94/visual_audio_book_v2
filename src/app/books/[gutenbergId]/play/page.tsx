@@ -22,7 +22,7 @@ export default async function BookPlayPage({
 }: PlayPageProps) {
   const session = await auth();
   if (!session) {
-    redirect(`/?returnUrl=/books/${(await params).gutenbergId}/play`);
+    redirect(`/login?returnUrl=/books/${(await params).gutenbergId}/play`);
   }
 
   const { gutenbergId } = await params;
