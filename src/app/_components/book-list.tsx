@@ -11,6 +11,7 @@ export interface Book {
   title: string;
   author: string;
   gutenbergId?: string;
+  language?: string;
   coverId?: number;
   firstPublishYear?: number;
   coverImageUrl?: string;

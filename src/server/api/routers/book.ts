@@ -12,6 +12,7 @@ interface OpenLibraryBook {
   id_project_gutenberg?: string[];
   cover_i?: number;
   first_publish_year?: number;
+  language?: string[];
 }
 
 export const bookRouter = createTRPCRouter({
@@ -106,7 +107,7 @@ export const bookRouter = createTRPCRouter({
     .input(z.string())
     .query(async ({ input: query }) => {
       try {
-        const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&fields=title,author_name,cover_i,first_publish_year,id_project_gutenberg`;
+        const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&language=eng&fields=title,author_name,cover_i,first_publish_year,id_project_gutenberg,language`;
         const response = await axios.get<{ docs: OpenLibraryBook[] }>(searchUrl);
         
         const booksWithGutenberg = response.data.docs
@@ -116,10 +117,13 @@ export const bookRouter = createTRPCRouter({
             gutenbergId: book.id_project_gutenberg?.[0] ?? null,
             coverId: book.cover_i,
             firstPublishYear: book.first_publish_year,
+            language: book.language?.[0] ?? undefined,
           }))
-          .filter((book): book is (typeof book & { gutenbergId: string }) => 
-            book.gutenbergId !== null && book.gutenbergId !== undefined
-          );
+          .filter((book): book is (typeof book & { gutenbergId: string }) => (
+            book.gutenbergId !== null && 
+            book.gutenbergId !== undefined &&
+            (!book.language || book.language.toLowerCase() === 'eng')
+          ));
 
         return booksWithGutenberg;
       } catch (error) {
