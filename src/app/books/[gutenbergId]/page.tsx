@@ -5,6 +5,7 @@ import { auth } from "~/server/auth";
 import { type Metadata } from "next";
 import { ProcessSequencesButton } from "./_components/process-sequences-button";
 import Link from "next/link";
+import { PlayCircle } from "lucide-react";
 
 type Params = {
   gutenbergId: string;
@@ -35,21 +36,79 @@ export default async function BookPage({ params }: PageProps) {
       notFound();
     }
 
-    let sequences: Awaited<ReturnType<typeof api.sequence.getByBookId>> = [];
-    try {
-      sequences = await api.sequence.getByBookId({
-        bookId: book.id,
-      startSequence: 0,
-        numberOfSequences: 10,
-      });
-    } catch {
-      console.log('No sequences yet')
-    }
+    // Get sequence count and user progress
+    const sequenceCount = await api.sequence.getCompletedCount({ bookId });
     const userProgress = book.userProgress?.[0];
-
+    
     return (
-      <div className="container mx-auto h-screen px-4 py-16">
-        <div className="grid h-full grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
+      <div className="container mx-auto px-4 py-8 md:py-16">
+        {/* Mobile Layout */}
+        <div className="flex flex-col gap-6 md:hidden">
+          {/* Title Section */}
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-bold">{book.title}</h1>
+            <p className="text-gray-300">by {book.author}</p>
+          </div>
+
+          {/* Continue Reading Button - Mobile */}
+          {sequenceCount > 0 && (
+            <Link
+              href={`/books/${gutenbergId}/play${userProgress ? `?startSequence=${userProgress.lastSequenceNumber}` : ''}`}
+              className="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-6 py-3 font-semibold text-white transition-colors hover:bg-white/20"
+            >
+              <PlayCircle className="h-5 w-5" />
+              {userProgress ? 'Continue Reading' : 'Start Reading'}
+            </Link>
+          )}
+
+          {/* Book Cover - Mobile */}
+          {book.coverImageUrl && (
+            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg">
+              <Image
+                src={book.coverImageUrl}
+                alt={book.title}
+                priority
+                fill
+                className="object-cover"
+                sizes="100vw"
+              />
+            </div>
+          )}
+
+          {/* Book Details - Mobile */}
+          {sequenceCount > 0 ? (
+            <div className="rounded-lg bg-white/5 p-4">
+              <h2 className="mb-3 text-lg font-semibold">Reading Progress</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-400">Total Sequences</p>
+                  <p className="text-xl font-bold">{sequenceCount}</p>
+                </div>
+                {userProgress && (
+                  <div>
+                    <p className="text-sm text-gray-400">Last Read</p>
+                    <p className="text-xl font-bold">Sequence {userProgress.lastSequenceNumber}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 rounded-lg bg-white/5 p-4">
+              <p className="text-center text-sm text-gray-400">
+                This book needs to be processed before you can start reading.
+              </p>
+              <ProcessSequencesButton 
+                bookId={book.id} 
+                numSequences={10}
+                variant="primary"
+                className="mt-2"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Layout */}
+        <div className="hidden grid-cols-1 gap-8 md:grid md:grid-cols-[300px_1fr]">
           {/* Book Cover and Info */}
           <div className="flex flex-col gap-4">
             {book.coverImageUrl && (
@@ -68,50 +127,50 @@ export default async function BookPage({ params }: PageProps) {
               <h1 className="text-2xl font-bold">{book.title}</h1>
               <p className="text-gray-300">by {book.author}</p>
               <p className="text-sm text-gray-400">Status: {book.status}</p>
-              {userProgress && (
-                <div className="mt-2 rounded-lg bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold">Your Progress</h3>
-                  <p className="text-xs text-gray-400">
-                    Last read: Sequence {userProgress.lastSequenceNumber}
-                  </p>
-                </div>
-              )}
-              <div className="mt-4">
-                <ProcessSequencesButton 
-                  bookId={book.id} 
-                  numSequences={1}
-                  variant="secondary"
-                />
-              </div>
             </div>
           </div>
 
-          {/* Sequences */}
-          <div className="flex flex-col gap-4">
-            <h2 className="text-xl font-semibold">Sequences</h2>
-            {sequences.length > 0 ? (
-              <div className="overflow-y-auto pr-4 sequence-list-container">
-                <div className="grid gap-4">
-                  {sequences.map((sequence) => (
-                    <Link
-                      key={sequence.id}
-                      href={`/books/${book.gutenbergId}/${sequence.sequenceNumber}`}
-                      className="block cursor-pointer rounded-lg bg-white/5 p-4 hover:bg-white/10"
-                    >
-                      <p className="text-sm">
-                        Sequence {sequence.sequenceNumber}
-                      </p>
-                      <p className="mt-2 text-gray-300">{sequence.content}</p>
-                    </Link>
-                  ))}
+          {/* Book Details and Progress */}
+          <div className="flex flex-col gap-8">
+            {sequenceCount > 0 ? (
+              <>
+                <div className="rounded-lg bg-white/5 p-6">
+                  <h2 className="mb-4 text-xl font-semibold">Reading Progress</h2>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-sm text-gray-400">Total Sequences</p>
+                      <p className="text-2xl font-bold">{sequenceCount}</p>
+                    </div>
+                    {userProgress && (
+                      <div>
+                        <p className="text-sm text-gray-400">Last Read</p>
+                        <p className="text-2xl font-bold">Sequence {userProgress.lastSequenceNumber}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+
+                <div className="flex flex-col gap-4">
+                  <Link
+                    href={`/books/${gutenbergId}/play${userProgress ? `?startSequence=${userProgress.lastSequenceNumber}` : ''}`}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-6 py-3 font-semibold text-white transition-colors hover:bg-white/20"
+                  >
+                    <PlayCircle className="h-5 w-5" />
+                    {userProgress ? 'Continue Reading' : 'Start Reading'}
+                  </Link>
+                </div>
+              </>
             ) : (
-              <div className="text-center">
-                <p className="mb-4 text-gray-400">
-                  No sequences available yet.
+              <div className="flex flex-col items-center gap-4 rounded-lg bg-white/5 p-6">
+                <p className="text-center text-lg text-gray-400">
+                  This book needs to be processed before you can start reading.
                 </p>
-                <ProcessSequencesButton bookId={book.id} numSequences={3} />
+                <ProcessSequencesButton 
+                  bookId={book.id} 
+                  numSequences={10}
+                  variant="primary"
+                  className="mt-4"
+                />
               </div>
             )}
           </div>

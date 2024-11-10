@@ -3,7 +3,7 @@ import { type ReactNode } from "react";
 import { api } from "~/trpc/server";
 import { notFound } from "next/navigation";
 import { ProcessSequencesButton } from "./_components/process-sequences-button";
-import { ChevronLeft, PlayCircle } from "lucide-react";
+import { ChevronLeft, PlayCircle, Plus } from "lucide-react";
 
 type Props = {
   children: ReactNode;
@@ -47,8 +47,9 @@ export default async function BookLayout({ children, params }: Props) {
               <Link
                 href={`/books/${book.gutenbergId}`}
                 className="truncate text-xs font-medium text-white/80 transition-colors hover:text-white md:text-sm"
+                title={book.title}
               >
-                {book.title}
+                {book.title.length > 15 ? `${book.title.slice(0, 12)}...` : book.title}
               </Link>
             </div>
 
@@ -65,11 +66,21 @@ export default async function BookLayout({ children, params }: Props) {
                 <span className="hidden md:inline">Play Book</span>
                 <span className="md:hidden">Play</span>
               </Link>
+              {/* Desktop Process Button */}
               <ProcessSequencesButton 
                 bookId={bookId} 
                 numSequences={5}
                 variant="secondary"
                 className="hidden md:block"
+              />
+              {/* Mobile Process Button */}
+              <ProcessSequencesButton 
+                bookId={bookId} 
+                numSequences={5}
+                variant="secondary"
+                className="md:hidden"
+                icon={<Plus className="h-3 w-3" />}
+                compact
               />
             </div>
           </div>
