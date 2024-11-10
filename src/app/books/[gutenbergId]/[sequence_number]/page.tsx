@@ -6,7 +6,7 @@ import { type Metadata } from "next";
 import { auth } from "~/server/auth";
 
 type Params = Promise<{
-  id: string;
+  gutenbergId: string;
   sequence_number: string;
 }>;
 
@@ -31,15 +31,20 @@ export default async function BookSequencePage({ params }: PageProps) {
   }
 
   try {
-    const { id, sequence_number } = await params;
+    const { gutenbergId, sequence_number } = await params;
     const sequenceNumber = parseInt(sequence_number, 10);
 
-    if (!id || isNaN(sequenceNumber)) {
+    if (!gutenbergId || isNaN(sequenceNumber)) {
+      notFound();
+    }
+
+    const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
+    if (!bookId) {
       notFound();
     }
 
     const sequence = (await api.sequence.getByBookIdAndNumber({
-      bookId: id,
+      bookId,
       sequenceNumber,
     })) as SafeSequence;
 
@@ -93,7 +98,7 @@ export default async function BookSequencePage({ params }: PageProps) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
-    const { id, sequence_number } = await params;
+    const { gutenbergId, sequence_number } = await params;
     const sequenceNumber = parseInt(sequence_number, 10);
     
     if (isNaN(sequenceNumber)) {
@@ -104,7 +109,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 
     const sequence = await api.sequence.getByBookIdAndNumber({
-      bookId: id,
+      bookId: await api.book.getBookIdByGutenbergId(gutenbergId),
       sequenceNumber,
     });
 

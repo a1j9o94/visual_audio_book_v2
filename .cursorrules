@@ -1,9 +1,0 @@
-We're using Next.js 15.
-
-Page props have to be promises and awaited
-
-Never use a variable without first checking if it is undefined. We are using very strict type checking and linting rules in our compiler.
-
-Always include the drizzle schema in your queries
-
-Use TRPC whenever possible over API routes

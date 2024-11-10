@@ -1,7 +1,7 @@
 import { api } from "~/trpc/server";
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { AudioPlayer } from "../../books/[id]/[sequence_number]/_components/AudioPlayer";
+import { AudioPlayer } from "../../books/[gutenbergId]/[sequence_number]/_components/AudioPlayer";
 import { type Metadata } from "next";
 import { auth } from "~/server/auth";
 

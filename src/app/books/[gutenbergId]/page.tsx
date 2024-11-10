@@ -7,7 +7,7 @@ import { ProcessSequencesButton } from "./_components/process-sequences-button";
 import Link from "next/link";
 
 type Params = {
-  id: string;
+  gutenbergId: string;
 };
 
 type PageProps = {
@@ -15,41 +15,23 @@ type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-type SafeBook = {
-  id: string;
-  title: string;
-  author: string;
-  coverImageUrl: string | null;
-  status: string;
-  userProgress: {
-    lastSequenceNumber: number;
-  }[];
-  sequences: {
-    sequence: {
-      id: string;
-      sequenceNumber: number;
-      content: string;
-    };
-    media: {
-      audioData: string | null;
-      imageData: string | null;
-      audioUrl: string | null;
-      imageUrl: string | null;
-    } | null;
-  }[];
-};
-
 export default async function BookPage({ params }: PageProps) {
   const session = await auth();
   if (!session) {
     notFound();
   }
-  const { id } = await params;
+  const { gutenbergId } = await params;
   
   try {
-    const book = (await api.book.getById(id)) as SafeBook;
+    const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
 
-    if (!book) {
+    if (!bookId) {
+      notFound();
+    }
+
+    const book = await api.book.getById(bookId);
+
+    if(!book) {
       notFound();
     }
 
@@ -103,7 +85,7 @@ export default async function BookPage({ params }: PageProps) {
                   {sequences.map((sequence) => (
                     <Link
                       key={sequence.sequence.id}
-                      href={`/books/${book.id}/${sequence.sequence.sequenceNumber}`}
+                      href={`/books/${book.gutenbergId}/${sequence.sequence.sequenceNumber}`}
                       className="block cursor-pointer rounded-lg bg-white/5 p-4 hover:bg-white/10"
                     >
                       <p className="text-sm">
@@ -135,8 +117,12 @@ export default async function BookPage({ params }: PageProps) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
-    const { id } = await params;
-    const book = await api.book.getById(id);
+    const { gutenbergId } = await params;
+    const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
+    if(!bookId) {
+      notFound();
+    }
+    const book = await api.book.getById(bookId);
     return {
       title: book?.title ?? 'Book Not Found',
       description: `${book?.title} by ${book?.author}`,

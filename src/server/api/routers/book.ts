@@ -61,7 +61,9 @@ export const bookRouter = createTRPCRouter({
           isNotNull(sequenceMedia.audioData),
           isNotNull(sequenceMedia.imageData)
         ))
-        .orderBy(desc(sequences.sequenceNumber));
+        .orderBy(sequences.sequenceNumber);
+
+      console.log('Found sequences:', bookSequences);
 
       const transformedSequences = bookSequences.map(seq => ({
         sequence: {
@@ -239,5 +241,21 @@ export const bookRouter = createTRPCRouter({
       }
 
       return sequence.bookId;
+    }),
+  getBookIdByGutenbergId: publicProcedure
+    .input(z.string())
+    .query(async ({ ctx, input }) => {
+      const book = await ctx.db.query.books.findFirst({
+        where: eq(books.gutenbergId, input),
+      });
+
+      if (!book) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Book with gutenberg id ${input} not found`,
+        });
+      }
+
+      return book.id;
     }),
 }); 

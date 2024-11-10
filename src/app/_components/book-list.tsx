@@ -106,8 +106,8 @@ export function BookList({ books, isSearchResults }: BookListProps) {
 
         return (
           <Link
-            key={book.id}
-            href={`/books/${book.id}`}
+            key={book.gutenbergId}
+            href={`/books/${book.gutenbergId}`}
             className="flex flex-col gap-2 rounded-xl bg-white/10 p-4 hover:bg-white/20"
           >
             <BookContent book={book} />

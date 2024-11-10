@@ -1,23 +1,40 @@
-"use client";
-
-import React from "react";
 import Link from "next/link";
 import { cn } from "~/lib/utils";
-import { usePathname } from "next/navigation";
 import { type ReactNode } from "react";
+import { api } from "~/trpc/server";
+import { notFound } from "next/navigation";
 
 type Props = {
   children: ReactNode;
   params: Promise<{
-    id: string;
+    gutenbergId: string;
+    sequenceNumber: string;
   }>;
 };
 
-export default function BookLayout({ children, params }: Props) {
-  const resolvedParams = React.use(params);
-  const { id } = resolvedParams;
-  const pathname = usePathname();
-  const isSequencePage = pathname.split('/').length > 3;
+export default async function BookLayout({ children, params }: Props) {
+  const resolvedParams = await params;
+  const { gutenbergId } = resolvedParams;
+  if(!api.book.getBookIdByGutenbergId) {
+    console.error('Endpoint not found');
+    return;
+  }
+  const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
+  if(!bookId) {
+    notFound();
+  }
+
+  if(!api.book.getById) {
+    console.error('Endpoint not found');
+    return;
+  }
+
+  const book = await api.book.getById(bookId);
+  if(!book) {
+    notFound();
+  }
+  //check if we have access to the seauence number if we do, it's a sequence page. This is a server compoonent. We can't use pathname
+  const isSequencePage = resolvedParams.sequenceNumber !== undefined;
 
   return (
     <div className="flex flex-col">
@@ -35,14 +52,14 @@ export default function BookLayout({ children, params }: Props) {
             </Link>
             <div className="h-4 w-px bg-white/10" />
             <Link
-              href={`/books/${id}`}
+              href={`/books/${book.gutenbergId}`}
               className={cn(
                 "flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium",
                 "hover:bg-white/10",
                 !isSequencePage ? "bg-white/10" : ""
               )}
             >
-              {isSequencePage ? "← Back to Book" : "Overview"}
+              {book.title}
             </Link>
           </div>
         </div>

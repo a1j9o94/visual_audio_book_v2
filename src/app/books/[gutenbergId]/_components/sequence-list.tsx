@@ -14,11 +14,11 @@ type Sequence = {
 };
 
 interface SequenceListProps {
-  bookId: string;
+  gutenbergId: string;
   initialSequences: Sequence[];
 }
 
-export function SequenceList({ bookId, initialSequences }: SequenceListProps) {
+export function SequenceList({ gutenbergId, initialSequences }: SequenceListProps) {
   const router = useRouter();
   const [page, setPage] = useState(1);
   const [sequences, setSequences] = useState<Sequence[]>(initialSequences);
@@ -27,21 +27,40 @@ export function SequenceList({ bookId, initialSequences }: SequenceListProps) {
   const loadMore = async () => {
     setIsLoading(true);
     const nextPage = page + 1;
-    const result = api.sequence.getByBookId.useQuery(bookId);
-    
-    if (result?.data) {
-      const newSequences = result.data.map(item => 
-        'sequence' in item ? item.sequence : item
-      ) as Sequence[];
-      setSequences([...sequences, ...newSequences]);
-      setPage(nextPage);
+    try {
+
+      if(!api.book.getBookIdByGutenbergId) {
+        console.error('Endpoint not found');
+        return;
+      }
+
+      //@ts-expect-error gutenbergId is not typed
+      const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
+
+      if (!bookId) {
+        console.error('Book ID not found');
+        return;
+      }
+
+      const result = api.sequence.getByBookId.useQuery(bookId);
+      
+      if (result?.data) {
+        const newSequences = result.data.map(item => 
+          'sequence' in item ? item.sequence : item
+        ) as Sequence[];
+        setSequences([...sequences, ...newSequences]);
+        setPage(nextPage);
+      }
+    } catch (error) {
+      console.error('Error fetching book ID:', error);
+      return;
     }
     setIsLoading(false);
   };
 
   const handleSequenceClick = (sequence: Sequence) => {
     console.log('Clicking sequence:', sequence);
-    router.push(`/books/${bookId}/${sequence.sequenceNumber}`);
+    router.push(`/books/${gutenbergId}/${sequence.sequenceNumber}`);
   };
 
   return (

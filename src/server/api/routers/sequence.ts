@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { sequences, userSequenceHistory, sequenceMedia, sequenceMetadata } from "~/server/db/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { sequences, userSequenceHistory, sequenceMedia, sequenceMetadata, userBookProgress } from "~/server/db/schema";
+import { eq, and, asc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { nanoid } from "nanoid";
+import { randomUUID } from 'crypto';
 
 // Helper function to create data URLs
 function createMediaUrls(media: typeof sequenceMedia.$inferSelect | null) {
@@ -98,18 +98,30 @@ export const sequenceRouter = createTRPCRouter({
       sequenceId: z.string(),
       timeSpent: z.number(),
       completed: z.boolean(),
-      preferences: z.record(z.unknown()).optional(),
+      bookId: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { sequenceId, timeSpent, completed, preferences } = input;
+      const { sequenceId, timeSpent, completed, bookId } = input;
       
-      return await ctx.db.insert(userSequenceHistory).values({
-        id: nanoid(),
-        sequenceId,
-        userId: ctx.session.user.id,
-        timeSpent,
-        completed,
-        preferences,
+      await ctx.db.transaction(async (tx) => {
+        // Update sequence history
+        await tx.insert(userSequenceHistory).values({
+          userId: ctx.session.user.id,
+          sequenceId,
+          timeSpent,
+          completed,
+        });
+
+        // Update book progress
+        await tx.update(userBookProgress)
+          .set({
+            totalTimeSpent: sql`${userBookProgress.totalTimeSpent} + ${timeSpent}`,
+            lastReadAt: new Date(),
+          })
+          .where(and(
+            eq(userBookProgress.userId, ctx.session.user.id),
+            eq(userBookProgress.bookId, bookId)
+          ));
       });
     }),
 
