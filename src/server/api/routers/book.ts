@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { books, userBookProgress, sequences, sequenceMedia } from "~/server/db/schema";
+import { books, userBookProgress, sequences, sequenceMedia, userSequenceHistory } from "~/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import axios from "axios";
@@ -281,4 +281,28 @@ export const bookRouter = createTRPCRouter({
         });
       }
     }),
+
+  clearUserHistory: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      // Delete all user progress entries
+      await ctx.db
+        .delete(userBookProgress)
+        .where(eq(userBookProgress.userId, ctx.session.user.id))
+        .returning();
+
+      // Delete all sequence history
+      await ctx.db
+        .delete(userSequenceHistory)
+        .where(eq(userSequenceHistory.userId, ctx.session.user.id))
+        .returning();
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error clearing user history:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to clear reading history',
+      });
+    }
+  }),
 }); 
