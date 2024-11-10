@@ -1,11 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+
+import type { TouchEvent } from 'react';
 import Image from 'next/image';
 import { api } from "~/trpc/react";
 import { useRouter } from 'next/navigation';
 import type { inferProcedureOutput } from '@trpc/server';
 import type { AppRouter } from '~/server/api/root';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface SequencePlayerProps {
   sequences: inferProcedureOutput<AppRouter['sequence']['getByBookId']>;
@@ -16,7 +19,6 @@ interface SequencePlayerProps {
 }
 
 export function SequencePlayer({ sequences: initialSequences, initialSequence, gutenbergId, totalSequences, bookId }: SequencePlayerProps) {
-  console.log(`Sequence player for ${bookId} with ${totalSequences} sequences`);
   const utils = api.useUtils();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -50,17 +52,6 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
       void utils.sequence.getSequenceMedia.prefetch(sequence.id);
     });
 
-    // If we're 5 sequences away from the last processed sequence,
-    // trigger processing of the next batch
-    //check the total sequences, not just the sequences array length
-    const lastSequenceNumber = sequences[sequences.length - 1]?.sequenceNumber ?? 0;
-    if (currentIndex >= sequences.length - 5 && lastSequenceNumber < totalSequences) {
-      void processSequences.mutate({
-        bookId,
-        gutenbergId,
-        numSequences: 10, // Process next 10 sequences
-      });
-    }
   }, [
     currentIndex, 
     sequences, 
@@ -89,17 +80,9 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     const handleEnded = () => {
       if (currentIndex < sequences.length - 1) {
         setCurrentIndex(prev => prev + 1);
-      }
-    };
-
-    const handleTimeUpdate = () => {
-      if (!audio || !bookId || !currentSequence) return;
-
-      if (currentIndex >= sequences.length - 1 && audio.currentTime >= audio.duration - 0.1) {
+      } else if (currentIndex === sequences.length - 1) {
         const lastSequence = sequences[sequences.length - 1];
-        if (!lastSequence?.id) {
-          throw new Error('Sequence ID not found');
-        }
+        if (!lastSequence?.id) return;
         
         updateProgress.mutate({
           bookId: bookId,
@@ -111,8 +94,11 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
             router.push(`/books/${gutenbergId}`);
           }
         });
-        return;
       }
+    };
+
+    const handleTimeUpdate = () => {
+      if (!audio || !bookId || !currentSequence) return;
       
       updateProgress.mutate({
         bookId: bookId,
@@ -129,7 +115,7 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
     };
-  }, [currentIndex, sequences.length, currentSequence?.id, gutenbergId, router, sequences, currentSequence, updateProgress, bookId]);
+  }, [currentIndex, sequences, currentSequence?.id, gutenbergId, router, updateProgress, bookId, currentSequence]);
 
   useEffect(() => {
     // When we're 3 sequences away from the end, fetch more
@@ -143,6 +129,39 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     }
   }, [currentIndex, sequences.length, totalSequences, fetchMoreSequences]);
 
+  // Touch handling state
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const minSwipeDistance = 50;
+
+  // Touch handlers
+  const onTouchStart = (e: TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0]?.clientY ?? null);
+  };
+
+  const onTouchMove = (e: TouchEvent) => {
+    setTouchEnd(e.targetTouches[0]?.clientY ?? null);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isUpSwipe = distance > minSwipeDistance;
+    const isDownSwipe = distance < -minSwipeDistance;
+    
+    if (isUpSwipe && currentIndex < sequences.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
+    if (isDownSwipe && currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+    
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
+
   const togglePlayPause = () => {
     if (audioRef.current) {
       if (isPlaying) {
@@ -154,68 +173,121 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     }
   };
 
-  if (!currentSequence?.id) {
+  // Add this new effect after the other useEffects
+  useEffect(() => {
+    // When sequence changes, ensure audio starts playing
+    if (audioRef.current) {
+      void audioRef.current.play().catch(() => {
+        // Handle autoplay restrictions if needed
+        console.log('Autoplay prevented by browser');
+      });
+      setIsPlaying(true);
+    }
+  }, [currentIndex]);
+
+  if (!currentSequence?.id || !media.data) {
     return null;
-  }
-  if (!media.data) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-gray-400">No media found for this sequence.</p>
-      </div>
-    );
   }
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center">
-      {media.data.imageUrl && (
-        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+      {/* Image Container - Full screen on mobile */}
+      <div 
+        className="relative h-full w-full cursor-pointer"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onClick={togglePlayPause}
+      >
+        {media.data.imageUrl && (
           <Image
             src={media.data.imageUrl}
             alt={`Sequence ${currentSequence.sequenceNumber}`}
             fill
             className="object-cover"
             priority
-            sizes="(min-width: 768px) 100vw, 100vw"
+            sizes="100vw"
           />
+        )}
+        
+        {/* Desktop Navigation Buttons */}
+        <div className="pointer-events-none absolute bottom-8 left-0 right-0 hidden items-center justify-between px-[20%] md:flex">
+          {currentIndex > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (currentIndex > 0) setCurrentIndex(prev => prev - 1);
+              }}
+              className="pointer-events-auto rounded-full bg-black/50 p-6 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
+            >
+              <ChevronLeft className="h-8 w-8" />
+            </button>
+          )}
+          {currentIndex < sequences.length - 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (currentIndex < sequences.length - 1) setCurrentIndex(prev => prev + 1);
+              }}
+              className="pointer-events-auto rounded-full bg-black/50 p-6 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
+            >
+              <ChevronRight className="h-8 w-8" />
+            </button>
+          )}
         </div>
-      )}
+        
+        {/* Play/Pause Indicator */}
+        <div 
+          className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/50 p-4 backdrop-blur-sm transition-opacity duration-200 md:hidden ${
+            isPlaying ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
+          <div className="h-8 w-8 text-white">
+            {isPlaying ? '⏸️' : '▶️'}
+          </div>
+        </div>
+        
+        {/* Text Overlay - Only on mobile */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 md:hidden">
+          <p className="text-center text-sm text-white">
+            {currentSequence.content}
+          </p>
+        </div>
 
-      <div className="mt-4 w-full">
-        <p className="mb-4 text-center text-gray-200">
-          {currentSequence.content}
-        </p>
+        {/* Desktop Content */}
+        <div className="hidden md:block md:w-full">
+          <div className="mt-4 w-full">
+            <p className="mb-4 text-center text-gray-200">
+              {currentSequence.content}
+            </p>
 
-        <audio
-          ref={audioRef}
-          src={media.data.audioUrl ?? undefined}
-          autoPlay={isPlaying}
-          className="w-full"
-          controls
-        />
-
-        <div className="mt-4 flex justify-center gap-4">
-          <button
-            onClick={() => currentIndex > 0 && setCurrentIndex(prev => prev - 1)}
-            className="rounded-lg bg-white/10 px-4 py-2 hover:bg-white/20"
-            disabled={currentIndex === 0}
-          >
-            Previous
-          </button>
-          <button
-            onClick={togglePlayPause}
-            className="rounded-lg bg-white/10 px-4 py-2 hover:bg-white/20"
-          >
-            {isPlaying ? 'Pause' : 'Play'}
-          </button>
-          <button
-            onClick={() => currentIndex < sequences.length - 1 && setCurrentIndex(prev => prev + 1)}
-            className="rounded-lg bg-white/10 px-4 py-2 hover:bg-white/20"
-            disabled={currentIndex === sequences.length - 1}
-          >
-            Next
-          </button>
+            <div className="mt-4 flex justify-center gap-4">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlayPause();
+                }}
+                className="rounded-lg bg-white/10 px-4 py-2 hover:bg-white/20"
+              >
+                {isPlaying ? 'Pause' : 'Play'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Single audio element for both mobile and desktop */}
+      {media.data.audioUrl && (
+        <audio
+          ref={audioRef}
+          src={media.data.audioUrl}
+          autoPlay={isPlaying}
+          className={`${!isPlaying ? 'hidden' : ''} md:block md:w-full`}
+          controls={false}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+        />
+      )}
     </div>
   );
 }

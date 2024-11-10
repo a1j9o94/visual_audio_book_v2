@@ -16,11 +16,15 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: Readonly<RootLayoutProps>) {
   return (
-    <html lang="en" className={`${GeistSans.variable}`}>
-      <body>
+    <html lang="en" className={`dark ${GeistSans.variable}`}>
+      <body className="min-h-screen bg-gradient-to-b from-[#2e026d] to-[#15162c] font-sans antialiased">
         <TRPCReactProvider>
-          <Header />
-          {children}
+          <div className="relative flex min-h-screen flex-col">
+            <Header />
+            <div className="flex-1">
+              {children}
+            </div>
+          </div>
         </TRPCReactProvider>
       </body>
     </html>

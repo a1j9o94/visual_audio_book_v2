@@ -4,15 +4,17 @@ import { type Metadata } from "next";
 import NotFound from "./not-found";
 import { auth } from "~/server/auth";
 import { redirect } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
+import Link from "next/link";
 
-interface PlayPageProps{
+interface PlayPageProps {
   params: Promise<{
     gutenbergId: string;
   }>;
   searchParams: Promise<{
     startSequence?: string;
   }>;
-};
+}
 
 export default async function BookPlayPage({
   params,
@@ -35,16 +37,14 @@ export default async function BookPlayPage({
   }
   
   try {
-    // Initially fetch only 10 sequences
     const sequences = await api.sequence.getByBookId({ 
       bookId, 
       startSequence: 0, 
       numberOfSequences: 10 
     });
     
-    // Get total sequence count - store it in a regular number variable
     const count = await api.sequence.getCompletedCount({ bookId });
-    const totalSequences = Number(count); // Ensure it's a number
+    const totalSequences = Number(count);
 
     let startSequenceNumber = 0;
     if(await searchParams) {
@@ -52,11 +52,30 @@ export default async function BookPlayPage({
     }
     
     return (
-      <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container mx-auto flex h-screen flex-col px-4 py-16">
-          <h1 className="mb-8 text-2xl font-bold">
-            {book.title} - Playback
-          </h1>
+      <div className="fixed inset-0 h-screen w-screen overflow-hidden md:relative md:min-h-[calc(100vh-8rem)] md:w-auto">
+        {/* Back button and title overlays - hidden on mobile */}
+        <div className="hidden md:block">
+          <div className="absolute left-4 top-4 z-10">
+            <Link
+              href={`/books/${gutenbergId}`}
+              className="flex items-center gap-2 rounded-full bg-black/50 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-black/60"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to Book
+            </Link>
+          </div>
+
+          <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2">
+            <div className="rounded-full bg-black/50 px-6 py-2 text-center backdrop-blur-sm">
+              <h1 className="text-sm font-medium text-white">
+                {book.title}
+              </h1>
+            </div>
+          </div>
+        </div>
+
+        {/* Main player */}
+        <div className="h-full">
           <SequencePlayer 
             sequences={sequences}
             initialSequence={startSequenceNumber}
@@ -65,7 +84,7 @@ export default async function BookPlayPage({
             bookId={bookId}
           />
         </div>
-      </main>
+      </div>
     );
   } catch (error) {
     console.error('Error in BookPlayPage:', error);
