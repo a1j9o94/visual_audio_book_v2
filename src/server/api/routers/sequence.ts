@@ -122,11 +122,16 @@ export const sequenceRouter = createTRPCRouter({
           completed,
         });
 
+        const sequence = await tx.query.sequences.findFirst({
+          where: eq(sequences.id, sequenceId),
+        });
+
         // Update book progress
         await tx.update(userBookProgress)
           .set({
             totalTimeSpent: sql`${userBookProgress.totalTimeSpent} + ${timeSpent}`,
             lastReadAt: new Date(),
+            lastSequenceNumber: sequence?.sequenceNumber ?? 0,
           })
           .where(and(
             eq(userBookProgress.userId, ctx.session.user.id),
