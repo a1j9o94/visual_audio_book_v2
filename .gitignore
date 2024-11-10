@@ -49,4 +49,4 @@ yarn-error.log*
 log.txt
 
 #Redis dumps
-*.rdb
+dump.rdb
