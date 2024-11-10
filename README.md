@@ -17,13 +17,13 @@ Visual Audio Books is an innovative platform that transforms public domain books
 - **Frontend**: Next.js 14 with App Router
 - **Backend**: tRPC, Node.js
 - **Database**: PostgreSQL with Drizzle ORM
+  - Storing audio and images directly may need to consider saving in a storage service like UploadThing or S3 later
 - **Authentication**: NextAuth.js
 - **AI Services**:
   - OpenAI API for text-to-speech
   - Stability AI for image generation
   - Anthropic Claude for scene analysis
 - **Job Processing**: BullMQ + Redis
-- **Storage**: UploadThing for media assets
 
 ## Getting Started
 

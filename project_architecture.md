@@ -15,6 +15,7 @@ graph TB
     subgraph DB["Database Layer"]
         Postgres[(PostgreSQL + Drizzle ORM)]
         Cache["Redis Cache"]
+        MediaStorage["Media Storage (Base64 in PostgreSQL)"]
     end
 
     subgraph Queue["Job Queue"]
@@ -29,11 +30,6 @@ graph TB
         Claude["Anthropic Claude API"]
     end
 
-    subgraph Storage["Storage"]
-        Assets["Static Assets"]
-        CDN["CDN/Media Storage"]
-    end
-
     %% Client Layer Connections
     UI --> BookList
     UI --> Player
@@ -44,23 +40,23 @@ graph TB
     BookAPI --> Postgres
     BookAPI --> Cache
     ProcessingAPI --> Bull
-    MediaAPI --> CDN
+    MediaAPI --> MediaStorage
+
+    %% Database Connections
+    MediaStorage --> Postgres
 
     %% Queue Connections
     Bull --> Workers
     Workers --> OpenAI
     Workers --> StabilityAI
     Workers --> Claude
-    Workers --> CDN
+    Workers --> MediaStorage
 
     %% External Service Connections
     BookAPI --> Gutenberg
     ProcessingAPI --> OpenAI
     ProcessingAPI --> StabilityAI
     ProcessingAPI --> Claude
-
-    %% Storage Connections
-    CDN --> Assets
 ```
 ```mermaid
     erDiagram
@@ -150,6 +146,7 @@ graph TB
         integer endPosition
         string status
         timestamp createdAt
+        timestamp updatedAt
     }
 
     SequenceCharacters {
@@ -162,9 +159,9 @@ graph TB
 
     SequenceMedia {
         uuid id PK
-        uuid sequenceId FK UK
-        string audioUrl
-        string imageUrl
+        uuid sequenceId FK
+        text audioData
+        text imageData
         integer audioDuration
         jsonb imageMetadata
         timestamp generatedAt
@@ -172,7 +169,7 @@ graph TB
 
     SequenceMetadata {
         uuid id PK
-        uuid sequenceId FK UK
+        uuid sequenceId FK
         jsonb sceneDescription
         jsonb cameraDirections
         jsonb mood
