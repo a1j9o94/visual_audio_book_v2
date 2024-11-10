@@ -29,6 +29,20 @@ export const bookRouter = createTRPCRouter({
     return allBooks;
   }),
 
+  getUserLibrary: protectedProcedure.query(async ({ ctx }) => {
+    const userProgressEntries = await ctx.db.query.userBookProgress.findMany({
+      where: eq(userBookProgress.userId, ctx.session.user.id),
+      with: {
+        book: true,
+      },
+    });
+    
+    return userProgressEntries.map(entry => ({
+      ...entry.book,
+      userProgress: [entry],
+    }));
+  }),
+
   getById: publicProcedure
     .input(z.string())
     .query(async ({ ctx, input }) => {
@@ -232,5 +246,39 @@ export const bookRouter = createTRPCRouter({
       });
       console.log('Found book:', book?.title);
       return book?.id ?? null;
+    }),
+
+  removeFromLibrary: protectedProcedure
+    .input(z.object({
+      bookId: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        // Delete the user's progress for this book
+        const result = await ctx.db
+          .delete(userBookProgress)
+          .where(
+            and(
+              eq(userBookProgress.bookId, input.bookId),
+              eq(userBookProgress.userId, ctx.session.user.id)
+            )
+          )
+          .returning();
+
+        if (!result.length) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Book not found in user library',
+          });
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error('Error removing book from library:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to remove book from library',
+        });
+      }
     }),
 }); 

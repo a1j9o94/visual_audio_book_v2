@@ -6,6 +6,7 @@ import { type Metadata } from "next";
 import { ProcessSequencesButton } from "./_components/process-sequences-button";
 import Link from "next/link";
 import { PlayCircle } from "lucide-react";
+import { RemoveFromLibraryButton } from "./_components/remove-from-library-button";
 
 type Params = {
   gutenbergId: string;
@@ -105,6 +106,14 @@ export default async function BookPage({ params }: PageProps) {
               />
             </div>
           )}
+
+          {/* Remove from Library Button - Mobile */}
+          <div className="mt-auto">
+            <RemoveFromLibraryButton 
+              bookId={book.id}
+              className="w-full"
+            />
+          </div>
         </div>
 
         {/* Desktop Layout */}
@@ -128,6 +137,12 @@ export default async function BookPage({ params }: PageProps) {
               <p className="text-gray-300">by {book.author}</p>
               <p className="text-sm text-gray-400">Status: {book.status}</p>
             </div>
+
+            {/* Remove from Library Button - Desktop */}
+            <RemoveFromLibraryButton 
+              bookId={book.id}
+              className="mt-auto"
+            />
           </div>
 
           {/* Book Details and Progress */}
