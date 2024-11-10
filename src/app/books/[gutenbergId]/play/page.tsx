@@ -1,5 +1,5 @@
 import { api } from "~/trpc/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "~/server/auth";
 import { SequencePlayer } from "~/app/books/[gutenbergId]/play/_components/sequence-player";
 import { type Metadata } from "next";
@@ -49,7 +49,7 @@ function transformSequence(apiSequence: APISequence) {
 export default async function BookPlayPage({ params, searchParams }: PageProps) {
   const session = await auth();
   if (!session) {
-    notFound();
+    redirect(`/?returnUrl=/books/${(await params).gutenbergId}/play`);
   }
 
   try {
@@ -57,12 +57,20 @@ export default async function BookPlayPage({ params, searchParams }: PageProps) 
     const resolvedSearchParams = await searchParams;
     const { gutenbergId } = resolvedParams;
     if (!gutenbergId) {
-      notFound();
+      redirect('/');
     }
 
     const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
     if (!bookId) {
-      notFound();
+      // Check if book exists in OpenLibrary
+      const searchResults = await api.book.search(gutenbergId);
+      if (searchResults.length > 0) {
+        // Book exists but needs to be added
+        redirect(`/?q=${gutenbergId}`);
+      } else {
+        // Book doesn't exist anywhere
+        notFound();
+      }
     }
 
     const book = await api.book.getById(bookId);
@@ -131,6 +139,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 
     const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
+    if (!bookId) {
+      return {
+        title: 'Book Not Found',
+        description: 'The requested book could not be found',
+      };
+    }
     const book = await api.book.getById(bookId);
     
     return {

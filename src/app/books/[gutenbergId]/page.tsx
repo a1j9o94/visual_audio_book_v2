@@ -1,5 +1,5 @@
 import { api } from "~/trpc/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
 import { auth } from "~/server/auth";
 import { type Metadata } from "next";
@@ -18,7 +18,7 @@ type PageProps = {
 export default async function BookPage({ params }: PageProps) {
   const session = await auth();
   if (!session) {
-    notFound();
+    redirect(`/?returnUrl=/books/${(await params).gutenbergId}`);
   }
   const { gutenbergId } = await params;
   

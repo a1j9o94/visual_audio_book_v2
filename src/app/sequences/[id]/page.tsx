@@ -1,5 +1,5 @@
 import { api } from "~/trpc/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
 import { AudioPlayer } from "../../books/[gutenbergId]/[sequence_number]/_components/AudioPlayer";
 import { type Metadata } from "next";
@@ -27,7 +27,7 @@ type SafeSequence = {
 export default async function SequencePage({ params }: PageProps) {
     const session = await auth();
     if (!session) {
-        notFound();
+        redirect(`/?returnUrl=/sequences/${(await params).id}`);
     }
 
     const { id } = await params;

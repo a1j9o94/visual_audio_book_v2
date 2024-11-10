@@ -29,7 +29,7 @@ export const bookRouter = createTRPCRouter({
     return allBooks;
   }),
 
-  getById: protectedProcedure
+  getById: publicProcedure
     .input(z.string())
     .query(async ({ ctx, input }) => {
       console.log('Getting book by id:', input);
@@ -249,17 +249,11 @@ export const bookRouter = createTRPCRouter({
   getBookIdByGutenbergId: publicProcedure
     .input(z.string())
     .query(async ({ ctx, input }) => {
+      console.log('Searching for Gutenberg ID:', input);
       const book = await ctx.db.query.books.findFirst({
         where: eq(books.gutenbergId, input),
       });
-
-      if (!book) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: `Book with gutenberg id ${input} not found`,
-        });
-      }
-
-      return book.id;
+      console.log('Found book:', book);
+      return book?.id ?? null;
     }),
 }); 

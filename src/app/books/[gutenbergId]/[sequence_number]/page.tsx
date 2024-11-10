@@ -1,5 +1,5 @@
 import { api } from "~/trpc/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
 import { AudioPlayer } from "./_components/AudioPlayer";
 import { type Metadata } from "next";
@@ -27,7 +27,8 @@ type SafeSequence = {
 export default async function BookSequencePage({ params }: PageProps) {
   const session = await auth();
   if (!session) {
-    notFound();
+    const { gutenbergId, sequence_number } = await params;
+    redirect(`/?returnUrl=/books/${gutenbergId}/${sequence_number}`);
   }
 
   try {
@@ -108,8 +109,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       };
     }
 
+    const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
+    if (!bookId) {
+      return {
+        title: 'Book Not Found',
+        description: 'The requested book could not be found',
+      };
+    }
+
     const sequence = await api.sequence.getByBookIdAndNumber({
-      bookId: await api.book.getBookIdByGutenbergId(gutenbergId),
+      bookId: bookId,
       sequenceNumber,
     });
 

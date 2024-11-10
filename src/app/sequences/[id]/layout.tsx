@@ -2,6 +2,8 @@ import React from "react";
 import Link from "next/link";
 import { cn } from "~/lib/utils";
 import { type ReactNode } from "react";
+import { auth } from "~/server/auth";
+import { redirect } from "next/navigation";
 
 type Props = {
   children: ReactNode;
@@ -10,8 +12,11 @@ type Props = {
   }>;
 };
 
-export default async function SequenceLayout({ children }: Props) {
-
+export default async function SequenceLayout({ children, params }: Props) {
+  const session = await auth();
+  if (!session) {
+    redirect(`/?returnUrl=/sequences/${(await params).id}`);
+  }
 
   return (
     <div className="flex flex-col">
