@@ -71,6 +71,15 @@ export default async function BookLayout({ children, params }: Props) {
               <span className="text-sm text-white/80">
                 {completeSequences} sequences complete
               </span>
+              <Link
+                href={`/books/${book.gutenbergId}/play`}
+                className={cn(
+                  "flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium",
+                  "bg-blue-500 hover:bg-blue-600 text-white"
+                )}
+              >
+                Play Book
+              </Link>
               <ProcessSequencesButton 
                 bookId={bookId} 
                 numSequences={5}
