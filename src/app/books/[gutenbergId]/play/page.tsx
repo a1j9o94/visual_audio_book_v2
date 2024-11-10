@@ -35,11 +35,13 @@ export default async function BookPlayPage({
   if (!book) {
     return <NotFound />;
   }
+
+  const startSequence = (await searchParams)?.startSequence ? parseInt((await searchParams).startSequence!) : 0;
   
   try {
     const sequences = await api.sequence.getByBookId({ 
       bookId, 
-      startSequence: 0, 
+      startSequence: startSequence, 
       numberOfSequences: 10 
     });
     
