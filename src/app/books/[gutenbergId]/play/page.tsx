@@ -46,7 +46,7 @@ function transformSequence(apiSequence: APISequence) {
   };
 }
 
-export default async function BookPlayPage({ params }: PageProps) {
+export default async function BookPlayPage({ params, searchParams }: PageProps) {
   const session = await auth();
   if (!session) {
     notFound();
@@ -54,16 +54,17 @@ export default async function BookPlayPage({ params }: PageProps) {
 
   try {
     const resolvedParams = await params;
+    const resolvedSearchParams = await searchParams;
     const { gutenbergId } = resolvedParams;
     if (!gutenbergId) {
       notFound();
     }
 
     const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
-    if(!bookId) {
+    if (!bookId) {
       notFound();
     }
-    
+
     const book = await api.book.getById(bookId);
     if (!book) {
       notFound();
@@ -72,6 +73,11 @@ export default async function BookPlayPage({ params }: PageProps) {
     // Get user's progress
     const userProgress = book.userProgress?.[0];
     const lastSequenceNumber = userProgress?.lastSequenceNumber ?? 0;
+
+    // Get the start sequence number from search params or default to last sequence number
+    const startSequenceNumber = resolvedSearchParams?.startSequence
+      ? parseInt(resolvedSearchParams.startSequence as string, 10)
+      : lastSequenceNumber;
 
     // Transform sequences and filter out any null results
     const sequences = (book.sequences ?? [])
@@ -101,7 +107,7 @@ export default async function BookPlayPage({ params }: PageProps) {
           </h1>
           <SequencePlayer 
             sequences={sequences}
-            initialSequence={lastSequenceNumber}
+            initialSequence={startSequenceNumber}
             gutenbergId={gutenbergId}
           />
         </div>
