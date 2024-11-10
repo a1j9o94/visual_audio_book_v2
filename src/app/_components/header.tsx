@@ -2,7 +2,6 @@ import Link from "next/link";
 import { auth } from "~/server/auth";
 import { BookSearch } from "./book-search";
 import { UserNav } from "./user-nav";
-import { Menu } from "lucide-react";
 
 export async function Header() {
   const session = await auth();
@@ -44,12 +43,6 @@ export async function Header() {
                 Sign in
               </Link>
             )}
-            <button 
-              className="rounded-md p-2 hover:bg-white/10 md:hidden"
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5 text-white" />
-            </button>
           </nav>
         </div>
         
