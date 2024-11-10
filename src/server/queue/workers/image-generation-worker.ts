@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import axios from "axios";
 import { getMediaStorage } from "~/server/storage";
 import FormData from "form-data";
-import { createDb, closeDb } from "~/server/db/utils";
+import { getDb, closeDb } from "~/server/db/utils";
 import { withRetry } from "~/server/db/utils";
 
 interface ImageGenerationJob {
@@ -74,7 +74,7 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
   QUEUE_NAMES.IMAGE_GENERATION,
   async (job) => {
     const { sequenceId, sceneDescription, sequenceNumber, totalSequences } = job.data;
-    const db = createDb();
+    const db = getDb();
     
     console.log(`[Image Worker] Starting job for sequence ${sequenceId}:`, {
       sequenceNumber,

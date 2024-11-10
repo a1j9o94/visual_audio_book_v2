@@ -15,18 +15,30 @@ interface SequencePlayerProps {
   bookId: string;
 }
 
-export function SequencePlayer({ sequences, initialSequence, gutenbergId, totalSequences, bookId }: SequencePlayerProps) {
+export function SequencePlayer({ sequences: initialSequences, initialSequence, gutenbergId, totalSequences, bookId }: SequencePlayerProps) {
   console.log(`Sequence player for ${bookId} with ${totalSequences} sequences`);
   const utils = api.useUtils();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [sequences, setSequences] = useState(initialSequences);
   const currentSequence = sequences[currentIndex];
   const router = useRouter();
   const media = api.sequence.getSequenceMedia.useQuery(currentSequence?.id ?? '');
   const updateProgress = api.sequence.updateProgress.useMutation();
+  const processSequences = api.sequence.processSequences.useMutation();
 
-  // Move all hooks to the top, before any conditional returns
+  const fetchMoreSequences = api.sequence.getByBookId.useQuery(
+    {
+      bookId,
+      startSequence: sequences.length,
+      numberOfSequences: 10
+    },
+    {
+      enabled: false // Only fetch when we need to
+    }
+  );
+
   useEffect(() => {
     // Prefetch next 5 sequences
     const nextSequences = sequences.slice(
@@ -37,7 +49,27 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId, totalS
     nextSequences.forEach((sequence) => {
       void utils.sequence.getSequenceMedia.prefetch(sequence.id);
     });
-  }, [currentIndex, sequences, utils.sequence.getSequenceMedia]);
+
+    // If we're 5 sequences away from the last processed sequence,
+    // trigger processing of the next batch
+    //check the total sequences, not just the sequences array length
+    const lastSequenceNumber = sequences[sequences.length - 1]?.sequenceNumber ?? 0;
+    if (currentIndex >= sequences.length - 5 && lastSequenceNumber < totalSequences) {
+      void processSequences.mutate({
+        bookId,
+        gutenbergId,
+        numSequences: 10, // Process next 10 sequences
+      });
+    }
+  }, [
+    currentIndex, 
+    sequences, 
+    utils.sequence.getSequenceMedia, 
+    processSequences, 
+    bookId, 
+    gutenbergId, 
+    totalSequences
+  ]);
 
   useEffect(() => {
     // Find the starting index based on initialSequence
@@ -98,6 +130,18 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId, totalS
       audio.removeEventListener('timeupdate', handleTimeUpdate);
     };
   }, [currentIndex, sequences.length, currentSequence?.id, gutenbergId, router, sequences, currentSequence, updateProgress, bookId]);
+
+  useEffect(() => {
+    // When we're 3 sequences away from the end, fetch more
+    if (currentIndex >= sequences.length - 3 && sequences.length < totalSequences) {
+      console.log('Fetching more sequences...');
+      void fetchMoreSequences.refetch().then((result) => {
+        if (result.data) {
+          setSequences(prev => [...prev, ...result.data]);
+        }
+      });
+    }
+  }, [currentIndex, sequences.length, totalSequences, fetchMoreSequences]);
 
   const togglePlayPause = () => {
     if (audioRef.current) {

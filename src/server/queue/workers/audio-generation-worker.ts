@@ -4,7 +4,7 @@ import { OpenAI, APIError } from 'openai';
 import { getMediaStorage } from "~/server/storage";
 import { sequences, sequenceMedia } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
-import { createDb, closeDb } from "~/server/db/utils";
+import { getDb, closeDb } from "~/server/db/utils";
 import { withRetry } from "~/server/db/utils";
 
 const openai = new OpenAI();
@@ -52,7 +52,7 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
   QUEUE_NAMES.AUDIO_GENERATION,
   async (job) => {
     const { sequenceId, text, sequenceNumber, totalSequences } = job.data;
-    const db = createDb();
+    const db = getDb();
     
     console.log(`[Audio Worker] Starting job for sequence ${sequenceId}:`, {
       sequenceNumber,

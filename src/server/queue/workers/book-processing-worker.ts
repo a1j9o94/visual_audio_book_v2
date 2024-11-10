@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { createDb, closeDb } from "~/server/db/utils";
+import { getDb, closeDb } from "~/server/db/utils";
 import { queueOptions, QUEUE_NAMES } from "../config";
 import { books, sequences } from "~/server/db/schema";
 import { addJob } from "../queues";
@@ -20,7 +20,13 @@ export const bookProcessingWorker = new Worker<BookProcessingJob>(
   async (job) => {
     console.log('Starting book processing job:', job.data);
     const { bookId, gutenbergId, numSequences } = job.data;
-    const db = createDb();
+    let db;
+    try {
+      db = getDb();
+    } catch (error) {
+      console.error('Error creating database connection:', error);
+      throw error;
+    }
 
     try {
       // Check if book already has sequences

@@ -15,36 +15,31 @@ if (!process.env.DATABASE_URL) {
 }
 
 const DEFAULT_PG_CONFIG = {
-  max: 10,
+  max: 20,
   idle_timeout: 20,
   connect_timeout: 10,
   statement_timeout: 30000,
   idle_in_transaction_session_timeout: 30000,
 } as const;
 
-// Create the SQL client
-const sql = postgres(process.env.DATABASE_URL, DEFAULT_PG_CONFIG);
+// Create a single shared connection pool
+const connectionPool = postgres(process.env.DATABASE_URL, DEFAULT_PG_CONFIG);
 
 // Create the global database instance
-export const globalDb = drizzle(sql, { schema });
+export const globalDb = drizzle(connectionPool, { schema });
 
-// For workers that need their own connection
-export function createDb() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is not defined');
-  }
-  const sql = postgres(process.env.DATABASE_URL, DEFAULT_PG_CONFIG);
-  return drizzle(sql, { schema });
+// For workers to get a connection from the pool
+export function getDb() {
+  return globalDb;
 }
 
-// Helper to close a database connection
+// Helper to properly release connections
 export async function closeDb(db: DrizzleClient) {
   if (!db || !(db as unknown as DrizzleInternals).$query) {
     return;
   }
-  // Cast to our internal interface instead of any
-  const client = (db as unknown as DrizzleInternals).$query.client;
-  await client.end();
+  // We don't actually close the connection, just return it to the pool
+  // The pool will manage the connections automatically
 }
 
 // Retry helper with exponential backoff

@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { queueOptions, QUEUE_NAMES } from "../config";
-import { createDb, closeDb } from "~/server/db/utils";
+import { getDb, closeDb } from "~/server/db/utils";
 import { sequences } from "~/server/db/schema";
 import { eq, and, lt } from "drizzle-orm";
 import { withRetry } from "~/server/db/utils";
@@ -15,7 +15,7 @@ export const statusCheckWorker = new Worker<StatusCheckJob>(
   async (job) => {
     
     console.log('Status check job started', job.id);
-    const db = createDb();
+    const db = getDb();
     
     try {
       const timestamp = job.data.timestamp;

@@ -5,7 +5,7 @@ import { sequences, sequenceMetadata } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import { Anthropic } from '@anthropic-ai/sdk';
 import { withRetry } from "~/server/db/utils";
-import { createDb, closeDb } from "~/server/db/utils";
+import { getDb, closeDb } from "~/server/db/utils";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY ?? '',
@@ -62,7 +62,7 @@ async function analyzeScene(content: string, retryCount = 0): Promise<SceneAnaly
 export const sceneAnalysisWorker = new Worker<SceneAnalysisJob>(
   QUEUE_NAMES.SCENE_ANALYSIS,
   async (job) => {
-    const db = createDb();
+    const db = getDb();
     
     try {
       // Update status to processing

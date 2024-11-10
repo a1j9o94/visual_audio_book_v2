@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import type { sequenceMetadata  } from "~/server/db/schema";
-import { sequences, userSequenceHistory, userBookProgress, sequenceMedia } from "~/server/db/schema";
-import { eq, and, asc, sql, gte, lte } from "drizzle-orm";
+import { sequences, userSequenceHistory, userBookProgress, sequenceMedia, books } from "~/server/db/schema";
+import { eq, and, asc, sql, gte, lte, } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { addJob } from "~/server/queue/queues";
 
 // Helper function to create data URLs
 function createMediaUrls(media: typeof sequenceMedia.$inferSelect | null) {
@@ -202,5 +203,29 @@ export const sequenceRouter = createTRPCRouter({
         console.error('Error in getCompletedCount:', error);
         throw error;
       }
+    }),
+  processSequences: publicProcedure
+    .input(z.object({ bookId: z.string(), gutenbergId: z.string(), numSequences: z.number() }))
+    .mutation(async ({ ctx, input: { bookId, gutenbergId, numSequences } }) => {
+
+      const book = await ctx.db.query.books.findFirst({
+        where: eq(books.id, bookId),
+      });
+
+      if (!book) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Book with id ${bookId} not found`,
+        });
+      }
+
+      await addJob({
+        type: 'book-processing',
+        data: {
+          bookId,
+          gutenbergId,
+          numSequences,
+        },
+      });
     }),
 }); 

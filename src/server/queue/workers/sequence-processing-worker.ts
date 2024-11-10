@@ -4,7 +4,7 @@ import { addJob } from "../queues";
 import { sequences } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import { withRetry } from "~/server/db/utils";
-import { createDb } from "~/server/db/utils";
+import { getDb } from "~/server/db/utils";
 
 interface SequenceProcessingJob {
   sequenceId: string;
@@ -18,7 +18,7 @@ export const sequenceProcessingWorker = new Worker<SequenceProcessingJob>(
   QUEUE_NAMES.SEQUENCE_PROCESSING,
   async (job) => {
     const { sequenceId, bookId, content, sequenceNumber, totalSequences } = job.data;
-    const db = createDb();
+    const db = getDb();
 
     console.log(`[Sequence ${sequenceNumber}/${totalSequences}] Starting processing`);
 

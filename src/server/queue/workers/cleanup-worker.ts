@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { queueOptions, QUEUE_NAMES } from "../config";
-import { createDb, closeDb } from "~/server/db/utils";
+import { getDb, closeDb } from "~/server/db/utils";
 import { sequences, sequenceMedia, sequenceMetadata } from "~/server/db/schema";
 import { lt, and, eq, inArray } from "drizzle-orm";
 import { withRetry } from "~/server/db/utils";
@@ -13,7 +13,7 @@ export const cleanupWorker = new Worker<CleanupJob>(
   QUEUE_NAMES.CLEANUP,
   async (job) => {
     console.log('Cleanup job started', job.id);
-    const db = createDb();
+    const db = getDb();
     
     try {
       // Delete media and metadata for failed sequences older than 24 hours
