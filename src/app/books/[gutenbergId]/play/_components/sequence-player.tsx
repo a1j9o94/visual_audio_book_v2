@@ -4,33 +4,40 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { api } from "~/trpc/react";
 import { useRouter } from 'next/navigation';
-
-interface Sequence {
-  id: string;
-  sequenceNumber: number;
-  content: string;
-  media: {
-    audioUrl: string;
-    imageUrl: string;
-  };
-}
+import type { inferProcedureOutput } from '@trpc/server';
+import type { AppRouter } from '~/server/api/root';
 
 interface SequencePlayerProps {
-  sequences: Sequence[];
+  sequences: inferProcedureOutput<AppRouter['sequence']['getByBookId']>;
+  totalSequences: number;
   initialSequence: number;
   gutenbergId: string;
+  bookId: string;
 }
 
-export function SequencePlayer({ sequences, initialSequence, gutenbergId }: SequencePlayerProps) {
+export function SequencePlayer({ sequences, initialSequence, gutenbergId, totalSequences, bookId }: SequencePlayerProps) {
+  console.log(`Sequence player for ${bookId} with ${totalSequences} sequences`);
+  const utils = api.useUtils();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   const currentSequence = sequences[currentIndex];
   const router = useRouter();
-
+  const media = api.sequence.getSequenceMedia.useQuery(currentSequence?.id ?? '');
   const updateProgress = api.sequence.updateProgress.useMutation();
 
-  const bookIdQuery = api.book.getBookIdByGutenbergId.useQuery(gutenbergId);
+  // Move all hooks to the top, before any conditional returns
+  useEffect(() => {
+    // Prefetch next 5 sequences
+    const nextSequences = sequences.slice(
+      currentIndex + 1,
+      currentIndex + 6
+    );
+    
+    nextSequences.forEach((sequence) => {
+      void utils.sequence.getSequenceMedia.prefetch(sequence.id);
+    });
+  }, [currentIndex, sequences, utils.sequence.getSequenceMedia]);
 
   useEffect(() => {
     // Find the starting index based on initialSequence
@@ -54,7 +61,7 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
     };
 
     const handleTimeUpdate = () => {
-      if (!audio || !bookIdQuery.data || !currentSequence) return;
+      if (!audio || !bookId || !currentSequence) return;
 
       if (currentIndex >= sequences.length - 1 && audio.currentTime >= audio.duration - 0.1) {
         const lastSequence = sequences[sequences.length - 1];
@@ -63,7 +70,7 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
         }
         
         updateProgress.mutate({
-          bookId: bookIdQuery.data,
+          bookId: bookId,
           sequenceId: lastSequence.id,
           timeSpent: Math.floor(audio.duration),
           completed: true
@@ -76,7 +83,7 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
       }
       
       updateProgress.mutate({
-        bookId: bookIdQuery.data,
+        bookId: bookId,
         sequenceId: currentSequence.id,
         timeSpent: Math.floor(audio.currentTime),
         completed: false
@@ -90,7 +97,7 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
     };
-  }, [currentIndex, sequences.length, currentSequence?.id, updateProgress, bookIdQuery.data, gutenbergId, router, sequences, currentSequence]);
+  }, [currentIndex, sequences.length, currentSequence?.id, gutenbergId, router, sequences, currentSequence, updateProgress, bookId]);
 
   const togglePlayPause = () => {
     if (audioRef.current) {
@@ -103,20 +110,23 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
     }
   };
 
-  if (!currentSequence) {
+  if (!currentSequence?.id) {
+    return null;
+  }
+  if (!media.data) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-gray-400">Loading sequence...</p>
+        <p className="text-gray-400">No media found for this sequence.</p>
       </div>
     );
   }
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center">
-      {currentSequence.media.imageUrl && (
+      {media.data.imageUrl && (
         <div className="relative aspect-video w-full overflow-hidden rounded-lg">
           <Image
-            src={currentSequence.media.imageUrl}
+            src={media.data.imageUrl}
             alt={`Sequence ${currentSequence.sequenceNumber}`}
             fill
             className="object-cover"
@@ -133,7 +143,7 @@ export function SequencePlayer({ sequences, initialSequence, gutenbergId }: Sequ
 
         <audio
           ref={audioRef}
-          src={currentSequence.media.audioUrl}
+          src={media.data.audioUrl ?? undefined}
           autoPlay={isPlaying}
           className="w-full"
           controls

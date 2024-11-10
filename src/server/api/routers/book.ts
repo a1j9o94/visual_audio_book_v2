@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { books, userBookProgress, sequences, sequenceMedia, sequenceMetadata } from "~/server/db/schema";
-import { eq, and, desc, isNotNull } from "drizzle-orm";
+import { books, userBookProgress, sequences, sequenceMedia } from "~/server/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import axios from "axios";
 import { addJob } from "~/server/queue/queues";
@@ -24,7 +24,7 @@ export const bookRouter = createTRPCRouter({
       }
     });
     
-    console.log('GetAll books:', allBooks);
+    console.log('GetAll books:', allBooks.map(book => book.title));
     
     return allBooks;
   }),
@@ -41,48 +41,25 @@ export const bookRouter = createTRPCRouter({
       });
 
       if (!book) return null;
-      console.log('Book found:', book);
+      console.log('Book found:', book.title);
 
       const bookSequences = await ctx.db.select({
         sequence: sequences,
         media: sequenceMedia,
-        metadata: sequenceMetadata,
       })
         .from(sequences)
-        .leftJoin(
-          sequenceMedia,
-          eq(sequences.id, sequenceMedia.sequenceId),
-        )
-        .leftJoin(
-          sequenceMetadata,
-          eq(sequences.id, sequenceMetadata.sequenceId),
-        )
+        .leftJoin(sequenceMedia, eq(sequences.id, sequenceMedia.sequenceId))
         .where(and(
           eq(sequences.bookId, input),
-          isNotNull(sequenceMedia.audioData),
-          isNotNull(sequenceMedia.imageData)
+          eq(sequences.status, 'completed')
         ))
         .orderBy(sequences.sequenceNumber);
 
-      console.log('Found sequences:', bookSequences);
-
-      const transformedSequences = bookSequences.map(seq => ({
-        sequence: {
-          id: seq.sequence.id,
-          sequenceNumber: seq.sequence.sequenceNumber,
-          content: seq.sequence.content,
-        },
-        media: seq.media ? {
-          audioData: seq.media.audioData,
-          imageData: seq.media.imageData,
-          audioUrl: seq.media.audioData ? `data:audio/mpeg;base64,${seq.media.audioData}` : null,
-          imageUrl: seq.media.imageData ? `data:image/png;base64,${seq.media.imageData}` : null,
-        } : null,
-      }));
+      console.log('Found sequences:', bookSequences.length);
 
       return {
         ...book,
-        sequences: transformedSequences
+        sequences
       };
     }),
 
@@ -253,7 +230,7 @@ export const bookRouter = createTRPCRouter({
       const book = await ctx.db.query.books.findFirst({
         where: eq(books.gutenbergId, input),
       });
-      console.log('Found book:', book);
+      console.log('Found book:', book?.title);
       return book?.id ?? null;
     }),
 }); 

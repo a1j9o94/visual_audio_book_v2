@@ -1,112 +1,56 @@
 import { api } from "~/trpc/server";
-import { notFound, redirect } from "next/navigation";
-import { auth } from "~/server/auth";
-import { SequencePlayer } from "~/app/books/[gutenbergId]/play/_components/sequence-player";
+import { SequencePlayer } from "./_components/sequence-player";
 import { type Metadata } from "next";
+import NotFound from "./not-found";
+import { auth } from "~/server/auth";
+import { redirect } from "next/navigation";
 
-type Params = {
-  gutenbergId: string;
+interface PlayPageProps{
+  params: Promise<{
+    gutenbergId: string;
+  }>;
+  searchParams: Promise<{
+    startSequence?: string;
+  }>;
 };
 
-type PageProps = {
-  params: Promise<Params>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
-
-// Define the type that matches what the API returns
-type APISequence = {
-  sequence: {
-    id: string;
-    sequenceNumber: number;
-    content: string;
-  };
-  media: {
-    audioData: string | null;
-    imageData: string | null;
-    audioUrl: string | null;
-    imageUrl: string | null;
-  } | null;
-};
-
-// Transform API sequence to player sequence
-function transformSequence(apiSequence: APISequence) {
-  // Check if sequence exists and has required media
-  if (!apiSequence?.sequence || !apiSequence?.media?.audioUrl || !apiSequence?.media?.imageUrl) {
-    return null;
-  }
-
-  return {
-    id: apiSequence.sequence.id,
-    sequenceNumber: apiSequence.sequence.sequenceNumber,
-    content: apiSequence.sequence.content,
-    media: {
-      audioUrl: apiSequence.media.audioUrl,
-      imageUrl: apiSequence.media.imageUrl
-    }
-  };
-}
-
-export default async function BookPlayPage({ params, searchParams }: PageProps) {
+export default async function BookPlayPage({
+  params,
+  searchParams,
+}: PlayPageProps) {
   const session = await auth();
   if (!session) {
     redirect(`/?returnUrl=/books/${(await params).gutenbergId}/play`);
   }
 
+  const { gutenbergId } = await params;
+  const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
+  if (!bookId) {
+    return <NotFound />;
+  }
+  
+  const book = await api.book.getById(bookId);
+  if (!book) {
+    return <NotFound />;
+  }
+  
   try {
-    const resolvedParams = await params;
-    const resolvedSearchParams = await searchParams;
-    const { gutenbergId } = resolvedParams;
-    if (!gutenbergId) {
-      redirect('/');
+    // Initially fetch only 10 sequences
+    const sequences = await api.sequence.getByBookId({ 
+      bookId, 
+      startSequence: 0, 
+      numberOfSequences: 10 
+    });
+    
+    // Get total sequence count - store it in a regular number variable
+    const count = await api.sequence.getCompletedCount({ bookId });
+    const totalSequences = Number(count); // Ensure it's a number
+
+    let startSequenceNumber = 0;
+    if(await searchParams) {
+      startSequenceNumber = (await searchParams)?.startSequence ? parseInt((await searchParams).startSequence!) : 0;
     }
-
-    const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
-    if (!bookId) {
-      // Check if book exists in OpenLibrary
-      const searchResults = await api.book.search(gutenbergId);
-      if (searchResults.length > 0) {
-        // Book exists but needs to be added
-        redirect(`/?q=${gutenbergId}`);
-      } else {
-        // Book doesn't exist anywhere
-        notFound();
-      }
-    }
-
-    const book = await api.book.getById(bookId);
-    if (!book) {
-      notFound();
-    }
-
-    // Get user's progress
-    const userProgress = book.userProgress?.[0];
-    const lastSequenceNumber = userProgress?.lastSequenceNumber ?? 0;
-
-    // Get the start sequence number from search params or default to last sequence number
-    const startSequenceNumber = resolvedSearchParams?.startSequence
-      ? parseInt(resolvedSearchParams.startSequence as string, 10)
-      : lastSequenceNumber;
-
-    // Transform sequences and filter out any null results
-    const sequences = (book.sequences ?? [])
-      .map(transformSequence)
-      .filter((seq): seq is NonNullable<typeof seq> => seq !== null);
-
-    if (sequences.length === 0) {
-      return (
-        <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-          <div className="container mx-auto flex h-screen flex-col px-4 py-16">
-            <h1 className="mb-8 text-2xl font-bold">
-              {book.title} - Processing
-            </h1>
-            <p className="text-gray-300">
-              This book is still being processed. Please check back later.
-            </p>
-          </div>
-        </main>
-      );
-    }
-
+    
     return (
       <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
         <div className="container mx-auto flex h-screen flex-col px-4 py-16">
@@ -117,19 +61,21 @@ export default async function BookPlayPage({ params, searchParams }: PageProps) 
             sequences={sequences}
             initialSequence={startSequenceNumber}
             gutenbergId={gutenbergId}
+            totalSequences={totalSequences}
+            bookId={bookId}
           />
         </div>
       </main>
     );
   } catch (error) {
     console.error('Error in BookPlayPage:', error);
-    notFound();
+    return <NotFound />;
   }
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata(props: PlayPageProps): Promise<Metadata> {
   try {
-    const { gutenbergId } = await params;
+    const { gutenbergId } = await props.params;
     
     if (!gutenbergId) {
       return {

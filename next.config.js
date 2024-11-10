@@ -7,7 +7,12 @@ import "./src/env.js";
 /** @type {import("next").NextConfig} */
 const config = {
     images: {
-        domains: ["www.gutenberg.org", "covers.openlibrary.org", "utfs.io", "https://api.uploadthing.com"],
+        remotePatterns: [
+            { hostname: "www.gutenberg.org" },
+            { hostname: "covers.openlibrary.org" },
+            { hostname: "utfs.io" },
+            { hostname: "api.uploadthing.com" },
+        ],
     },
 };
 

@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import { api } from "~/trpc/server";
 import { notFound } from "next/navigation";
 import { ProcessSequencesButton } from "./_components/process-sequences-button";
+import React from "react";
 
 type Props = {
   children: ReactNode;
@@ -13,34 +14,28 @@ type Props = {
   }>;
 };
 
-// Add this type definition (adjust according to your actual sequence type)
+export type LayoutData = {
+  book: NonNullable<Awaited<ReturnType<typeof api.book.getById>>>;
+  sequences: NonNullable<Awaited<ReturnType<typeof api.sequence.getByBookId>>>;
+  bookId: string;
+};
 
 export default async function BookLayout({ children, params }: Props) {
   const resolvedParams = await params;
   const { gutenbergId } = resolvedParams;
-  if(!api.book.getBookIdByGutenbergId) {
-    console.error('Endpoint not found');
-    return;
-  }
+  
   const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
   if(!bookId) {
     notFound();
-  }
-
-  if(!api.book.getById) {
-    console.error('Endpoint not found');
-    return;
   }
 
   const book = await api.book.getById(bookId);
   if(!book) {
     notFound();
   }
-  //check if we have access to the seauence number if we do, it's a sequence page. This is a server compoonent. We can't use pathname
-  const isSequencePage = resolvedParams.sequenceNumber !== undefined;
-
-  const sequences = await api.sequence.getByBookId(bookId);
-  const completeSequences = sequences.filter(seq => seq.status === "completed").length;
+  
+  // Get completed sequences count
+  const completeSequences = await api.sequence.getCompletedCount({ bookId });
 
   return (
     <div className="flex flex-col">
@@ -62,7 +57,6 @@ export default async function BookLayout({ children, params }: Props) {
               className={cn(
                 "flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium",
                 "hover:bg-white/10",
-                !isSequencePage ? "bg-white/10" : ""
               )}
             >
               {book.title}

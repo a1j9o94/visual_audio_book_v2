@@ -98,7 +98,7 @@ export function BookList({ books, isSearchResults }: BookListProps) {
           );
         }
 
-        console.log('Library book:', book);
+        console.log('Library book:', book.title);
         
         if (!book.id) {
           console.warn('Book missing ID:', book);

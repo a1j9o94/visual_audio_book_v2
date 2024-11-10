@@ -201,8 +201,14 @@ export const booksRelations = relations(books, ({ many }) => ({
 
 export const sequencesRelations = relations(sequences, ({ one, many }) => ({
   book: one(books, { fields: [sequences.bookId], references: [books.id] }),
-  media: one(sequenceMedia, { fields: [sequences.id], references: [sequenceMedia.sequenceId] }),
-  metadata: one(sequenceMetadata, { fields: [sequences.id], references: [sequenceMetadata.sequenceId] }),
+  media: one(sequenceMedia, {
+    fields: [sequences.id],
+    references: [sequenceMedia.sequenceId],
+  }),
+  metadata: one(sequenceMetadata, {
+    fields: [sequences.id],
+    references: [sequenceMetadata.sequenceId],
+  }),
   characters: many(sequenceCharacters),
   history: many(userSequenceHistory),
 }));
@@ -224,7 +230,10 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
 }));
 
 export const sequenceMediaRelations = relations(sequenceMedia, ({ one }) => ({
-  sequence: one(sequences, { fields: [sequenceMedia.sequenceId], references: [sequences.id] }),
+  sequence: one(sequences, {
+    fields: [sequenceMedia.sequenceId],
+    references: [sequences.id],
+  }),
 }));
 
 export const sequenceMetadataRelations = relations(sequenceMetadata, ({ one }) => ({

@@ -2,15 +2,19 @@ import { redirect } from "next/navigation";
 import { api } from "~/trpc/server";
 import { notFound } from "next/navigation";
 
-interface PlayPageProps {
+interface PageProps {
   params: Promise<{
     gutenbergId: string;
     sequenceNumber: string;
   }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function PlayFromSequencePage({ params }: PlayPageProps) {
-  // Get the book ID from the Gutenberg ID
+export default async function PlayFromSequencePage({ 
+  params,
+  searchParams
+}: PageProps) {
+  console.log('PlayFromSequencePage', params, searchParams);
   const { gutenbergId, sequenceNumber } = await params;
   const sequenceNumberInt = parseInt(sequenceNumber, 10);
 
@@ -19,11 +23,9 @@ export default async function PlayFromSequencePage({ params }: PlayPageProps) {
   }
 
   const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
-
   if (!bookId) {
     notFound();
   }
   
-  // Redirect to the play page with the sequence number in the URL search params
   redirect(`/books/${gutenbergId}/play?startSequence=${sequenceNumber}`);
 } 

@@ -35,7 +35,16 @@ export default async function BookPage({ params }: PageProps) {
       notFound();
     }
 
-    const sequences = book.sequences ?? [];
+    let sequences: Awaited<ReturnType<typeof api.sequence.getByBookId>> = [];
+    try {
+      sequences = await api.sequence.getByBookId({
+        bookId: book.id,
+      startSequence: 0,
+        numberOfSequences: 10,
+      });
+    } catch {
+      console.log('No sequences yet')
+    }
     const userProgress = book.userProgress?.[0];
 
     return (
@@ -48,6 +57,7 @@ export default async function BookPage({ params }: PageProps) {
                 <Image
                   src={book.coverImageUrl}
                   alt={book.title}
+                  priority
                   fill
                   className="object-cover"
                   sizes="(min-width: 768px) 300px, 100vw"
@@ -84,14 +94,14 @@ export default async function BookPage({ params }: PageProps) {
                 <div className="grid gap-4">
                   {sequences.map((sequence) => (
                     <Link
-                      key={sequence.sequence.id}
-                      href={`/books/${book.gutenbergId}/${sequence.sequence.sequenceNumber}`}
+                      key={sequence.id}
+                      href={`/books/${book.gutenbergId}/${sequence.sequenceNumber}`}
                       className="block cursor-pointer rounded-lg bg-white/5 p-4 hover:bg-white/10"
                     >
                       <p className="text-sm">
-                        Sequence {sequence.sequence.sequenceNumber}
+                        Sequence {sequence.sequenceNumber}
                       </p>
-                      <p className="mt-2 text-gray-300">{sequence.sequence.content}</p>
+                      <p className="mt-2 text-gray-300">{sequence.content}</p>
                     </Link>
                   ))}
                 </div>

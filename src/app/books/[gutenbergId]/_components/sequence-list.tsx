@@ -25,15 +25,18 @@ export function SequenceList({ gutenbergId, initialSequences }: SequenceListProp
   const [isLoading, setIsLoading] = useState(false);
 
   const bookIdQuery = api.book.getBookIdByGutenbergId.useQuery(gutenbergId);
+  const sequenceQuery = api.sequence.getByBookId.useQuery(
+    bookIdQuery.data ? { bookId: bookIdQuery.data, startSequence: page * 10 } : { bookId: "" }
+  );
 
   const loadMore = async () => {
     setIsLoading(true);
     const nextPage = page + 1;
     try {
       if (bookIdQuery.data) {
-        const result = api.sequence.getByBookId.useQuery(bookIdQuery.data);
+        const result = await sequenceQuery.refetch();
         
-        if (result?.data) {
+        if (result.data) {
           const newSequences = result.data.map(item => 
             'sequence' in item ? item.sequence : item
           ) as Sequence[];
