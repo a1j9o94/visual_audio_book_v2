@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "~/trpc/react";
+import { Button } from "~/components/ui/button";
+import { ExternalLink, Library } from "lucide-react";
 
 export interface GutenbergBook {
   id: string;
@@ -15,9 +17,11 @@ export interface GutenbergBook {
 
 interface GutenbergBookProps {
   book: GutenbergBook;
+  className?: string;
+  showDetails?: boolean;
 }
 
-export function GutenbergBook({ book }: GutenbergBookProps) {
+export function GutenbergBook({ book, className = "", showDetails = true }: GutenbergBookProps) {
   const router = useRouter();
   const [isAdding, setIsAdding] = useState(false);
 
@@ -44,25 +48,39 @@ export function GutenbergBook({ book }: GutenbergBookProps) {
   };
 
   return (
-    <div className="mt-8 rounded-xl bg-white/10 p-6">
-      <h2 className="text-2xl font-bold">{book.title}</h2>
-      <p className="mt-2 text-gray-300">by {book.author}</p>
-      <div className="mt-4 flex gap-4">
-        <button
+    <div className={`${showDetails ? "mt-8 rounded-xl bg-white/10 p-6" : ""} ${className}`}>
+      {showDetails && (
+        <>
+          <h2 className="text-2xl font-bold">{book.title}</h2>
+          <p className="mt-2 text-gray-300">by {book.author}</p>
+        </>
+      )}
+      <div className={`${showDetails ? "mt-4" : ""} flex flex-col gap-3 sm:flex-row sm:gap-4`}>
+        <Button
           onClick={handleAddToLibrary}
           disabled={isAdding}
-          className="rounded-lg bg-white/10 px-4 py-2 font-semibold hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full"
+          variant="secondary"
         >
+          <Library className="mr-2 h-4 w-4" />
           {isAdding ? 'Adding to Library...' : 'Add to Library'}
-        </button>
-        <a
-          href={`https://www.gutenberg.org/ebooks/${book.gutenbergId}`}
-          target="_blank"
-          rel="noopener noreferrer" 
-          className="rounded-lg bg-white/10 px-4 py-2 font-semibold hover:bg-white/20"
-        >
-          View on Project Gutenberg
-        </a>
+        </Button>
+        {showDetails && (
+          <Button
+            asChild
+            variant="outline"
+            className="w-full"
+          >
+            <a
+              href={`https://www.gutenberg.org/ebooks/${book.gutenbergId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View on Project Gutenberg
+            </a>
+          </Button>
+        )}
       </div>
     </div>
   );

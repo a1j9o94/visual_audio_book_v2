@@ -68,6 +68,8 @@ export default async function BookPage({ params }: PageProps) {
     const sequenceCount = await api.sequence.getCompletedCount.call({ input: { bookId }, session }, { bookId });
     const userProgress = book.userProgress?.[0];
 
+    const isInLibrary = book.userProgress && book.userProgress.length > 0;
+
     return (
       <div className="container mx-auto px-4 py-8 md:py-16">
         {/* Mobile Layout */}
@@ -134,12 +136,24 @@ export default async function BookPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Remove from Library Button - Mobile */}
+          {/* Library Button - Mobile */}
           <div className="mt-auto">
-            <RemoveFromLibraryButton 
-              bookId={book.id}
-              className="w-full"
-            />
+            {isInLibrary ? (
+              <RemoveFromLibraryButton 
+                bookId={book.id}
+                className="w-full"
+              />
+            ) : (
+              <GutenbergBook 
+                book={{
+                  id: book.id,
+                  gutenbergId: book.gutenbergId!,
+                  title: book.title,
+                  author: book.author,
+                  coverImageUrl: book.coverImageUrl,
+                }} 
+              />
+            )}
           </div>
         </div>
 
@@ -165,11 +179,25 @@ export default async function BookPage({ params }: PageProps) {
               <p className="text-sm text-gray-400">Status: {book.status}</p>
             </div>
 
-            {/* Remove from Library Button - Desktop */}
-            <RemoveFromLibraryButton 
-              bookId={book.id}
-              className="mt-auto"
-            />
+            {/* Library Button - Desktop */}
+            <div className="mt-auto">
+              {isInLibrary ? (
+                <RemoveFromLibraryButton 
+                  bookId={book.id}
+                  className="mt-auto"
+                />
+              ) : (
+                <GutenbergBook 
+                  book={{
+                    id: book.id,
+                    gutenbergId: book.gutenbergId!,
+                    title: book.title,
+                    author: book.author,
+                    coverImageUrl: book.coverImageUrl,
+                  }} 
+                />
+              )}
+            </div>
           </div>
 
           {/* Book Details and Progress */}
