@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { type Metadata } from "next";
 import { TRPCReactProvider } from "~/trpc/react";
 import { Header } from "./_components/header";
+import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: "Visual Audio Books",
@@ -18,14 +19,16 @@ export default function RootLayout({ children }: Readonly<RootLayoutProps>) {
   return (
     <html lang="en" className={`dark ${GeistSans.variable}`}>
       <body className="min-h-screen bg-gradient-to-b from-[#2e026d] to-[#15162c] font-sans antialiased">
-        <TRPCReactProvider>
-          <div className="relative flex min-h-screen flex-col">
-            <Header />
-            <div className="flex-1">
-              {children}
+        <Providers>
+          <TRPCReactProvider>
+            <div className="relative flex min-h-screen flex-col">
+              <Header />
+              <div className="flex-1">
+                {children}
+              </div>
             </div>
-          </div>
-        </TRPCReactProvider>
+          </TRPCReactProvider>
+        </Providers>
       </body>
     </html>
   );

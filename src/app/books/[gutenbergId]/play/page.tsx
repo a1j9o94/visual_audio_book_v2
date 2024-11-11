@@ -4,8 +4,6 @@ import { type Metadata } from "next";
 import NotFound from "./not-found";
 import { auth } from "~/server/auth";
 import { redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
-import Link from "next/link";
 
 interface PlayPageProps {
   params: Promise<{
@@ -55,26 +53,6 @@ export default async function BookPlayPage({
     
     return (
       <div className="fixed inset-0 h-screen w-screen overflow-hidden md:relative md:min-h-[calc(100vh-8rem)] md:w-auto">
-        {/* Back button and title overlays - hidden on mobile */}
-        <div className="hidden md:block">
-          <div className="absolute left-4 top-4 z-10">
-            <Link
-              href={`/books/${gutenbergId}`}
-              className="flex items-center gap-2 rounded-full bg-black/50 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-black/60"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back to Book
-            </Link>
-          </div>
-
-          <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2">
-            <div className="rounded-full bg-black/50 px-6 py-2 text-center backdrop-blur-sm">
-              <h1 className="text-sm font-medium text-white">
-                {book.title}
-              </h1>
-            </div>
-          </div>
-        </div>
 
         {/* Main player */}
         <div className="h-full">

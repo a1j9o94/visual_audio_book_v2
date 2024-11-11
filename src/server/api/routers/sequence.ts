@@ -32,15 +32,6 @@ type SequenceWithMedia = typeof sequences.$inferSelect & {
   }[];
 };
 
-// Keep track of pending updates
-const pendingUpdates = new Map<string, {
-  timeSpent: number;
-  lastUpdate: number;
-  timer: NodeJS.Timeout | null;
-  processingPromise: Promise<void> | null;
-}>();
-
-const BATCH_INTERVAL = 10000; // 10 seconds
 
 export const sequenceRouter = createTRPCRouter({
   getByBookId: publicProcedure
@@ -78,11 +69,26 @@ export const sequenceRouter = createTRPCRouter({
   getSequenceMedia: publicProcedure
     .input(z.string())
     .query(async ({ ctx, input: sequenceId }) => {
-      const media = await ctx.db.query.sequenceMedia.findFirst({
-        where: eq(sequenceMedia.sequenceId, sequenceId),
-      });
+      try {
+        const media = await ctx.db.query.sequenceMedia.findFirst({
+          where: eq(sequenceMedia.sequenceId, sequenceId),
+        });
 
-      return createMediaUrls(media ?? null);
+        if (!media) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `No media found for sequence ${sequenceId}`,
+          });
+        }
+
+        return createMediaUrls(media);
+      } catch (error) {
+        console.error('Error fetching sequence media:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch sequence media',
+        });
+      }
     }),
 
   getById: publicProcedure
@@ -118,50 +124,51 @@ export const sequenceRouter = createTRPCRouter({
   updateProgress: protectedProcedure
     .input(z.object({
       sequenceId: z.string(),
-      timeSpent: z.number(),
+      timeSpent: z.number().min(0),
       completed: z.boolean(),
       bookId: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { sequenceId, timeSpent, completed } = input;
+      const { sequenceId, bookId } = input;
       const userId = ctx.session.user.id;
-      const key = `${userId}-${sequenceId}`;
 
-      // If this is a completion event, process it immediately
-      if (completed) {
-        await processUpdate(ctx, input, userId);
-        return;
-      }
-
-      // Get or create pending update
-      const pending = pendingUpdates.get(key) ?? {
-        timeSpent: 0,
-        lastUpdate: Date.now(),
-        timer: null,
-        processingPromise: null,
-      };
-
-      // Add new time to accumulated time
-      pending.timeSpent += timeSpent;
-
-      // Clear existing timer if any
-      if (pending.timer) {
-        clearTimeout(pending.timer);
-      }
-
-      // Set new timer
-      pending.timer = setTimeout(() => {
-        // Store the promise for potential cleanup
-        pending.processingPromise = processUpdate(ctx, {
-          ...input,
-          timeSpent: pending.timeSpent,
-        }, userId).finally(() => {
-          pendingUpdates.delete(key);
+      try {
+        // Verify sequence exists
+        const sequence = await ctx.db.query.sequences.findFirst({
+          where: eq(sequences.id, sequenceId),
         });
-      }, BATCH_INTERVAL);
 
-      // Store updated pending state
-      pendingUpdates.set(key, pending);
+        if (!sequence) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Sequence ${sequenceId} not found`,
+          });
+        }
+
+        // Verify book exists
+        const book = await ctx.db.query.books.findFirst({
+          where: eq(books.id, bookId),
+        });
+
+        if (!book) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: `Book ${bookId} not found`,
+          });
+        }
+
+        // Process update immediately
+        await processUpdate(ctx, input, userId);
+        return { success: true };
+
+      } catch (error) {
+        console.error('Error updating progress:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update progress',
+          cause: error,
+        });
+      }
     }),
 
   getByBookIdAndNumber: publicProcedure
@@ -253,34 +260,65 @@ async function processUpdate(
   },
   userId: string
 ): Promise<void> {
-  const { sequenceId, timeSpent, completed, bookId } = input;
+  try {
+    await ctx.db.transaction(async (tx) => {
+      // Ensure userBookProgress record exists
+      const progress = await tx.query.userBookProgress.findFirst({
+        where: and(
+          eq(userBookProgress.userId, userId),
+          eq(userBookProgress.bookId, input.bookId)
+        ),
+      });
 
-  await ctx.db.transaction(async (tx) => {
-    // Update sequence history
-    await tx.insert(userSequenceHistory).values({
-      userId,
-      sequenceId,
-      timeSpent,
-      completed,
+      if (!progress) {
+        // Insert new userBookProgress record
+        await tx.insert(userBookProgress).values({
+          userId,
+          bookId: input.bookId,
+          lastSequenceNumber: 0,
+          lastReadAt: new Date(),
+          totalTimeSpent: 0,
+          isComplete: false,
+          readingPreferences: {}, // Initialize if necessary
+          updatedAt: new Date(),
+        });
+      }
+
+      // Update sequence history
+      await tx.insert(userSequenceHistory).values({
+        userId,
+        sequenceId: input.sequenceId,
+        timeSpent: input.timeSpent,
+        completed: input.completed,
+      });
+
+      // Get sequence number
+      const sequence = await tx.query.sequences.findFirst({
+        where: eq(sequences.id, input.sequenceId),
+        columns: {
+          sequenceNumber: true,
+        },
+      });
+
+      // Update book progress
+      await tx.update(userBookProgress)
+        .set({
+          totalTimeSpent: sql`${userBookProgress.totalTimeSpent} + ${input.timeSpent}`,
+          lastReadAt: new Date(),
+          lastSequenceNumber: sequence?.sequenceNumber ?? 0,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(userBookProgress.userId, userId),
+          eq(userBookProgress.bookId, input.bookId)
+        ));
     });
-
-    const sequence = await tx.query.sequences.findFirst({
-      where: eq(sequences.id, sequenceId),
-      columns: {
-        sequenceNumber: true,
-      },
+  } catch (error) {
+    console.error('Error in processUpdate:', error);
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Failed to process update',
+      cause: error,
     });
-
-    // Update book progress
-    await tx.update(userBookProgress)
-      .set({
-        totalTimeSpent: sql`${userBookProgress.totalTimeSpent} + ${timeSpent}`,
-        lastReadAt: new Date(),
-        lastSequenceNumber: sequence?.sequenceNumber ?? 0,
-      })
-      .where(and(
-        eq(userBookProgress.userId, userId),
-        eq(userBookProgress.bookId, bookId)
-      ));
-  });
+  }
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { api } from "~/trpc/react";
-import { useRouter } from 'next/navigation';
 import type { inferProcedureOutput } from '@trpc/server';
 import type { AppRouter } from '~/server/api/root';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -22,41 +21,26 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [sequences, setSequences] = useState(initialSequences);
+  const [sequences] = useState(initialSequences);
   const currentSequence = sequences[currentIndex];
-  const router = useRouter();
   const media = api.sequence.getSequenceMedia.useQuery(currentSequence?.id ?? '');
   const updateProgress = api.sequence.updateProgress.useMutation();
   const processSequences = api.sequence.processSequences.useMutation();
 
-  // Touch handling state
+  // Update touch handling state to track Y coordinates instead of X
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
-  const fetchMoreSequences = api.sequence.getByBookId.useQuery(
-    {
-      bookId,
-      startSequence: sequences.length,
-      numberOfSequences: 10
-    },
-    {
-      enabled: false
-    }
-  );
-
-  // Initial loading and position setup
   useEffect(() => {
     const initialize = async () => {
       setIsLoading(true);
-      
-      // Prefetch first 5 sequences
       const initialBatch = sequences.slice(0, 5);
       await Promise.all(
         initialBatch.map(seq => utils.sequence.getSequenceMedia.prefetch(seq.id))
       );
 
-      // Set initial position
       const startIndex = sequences.findIndex(seq => 
         seq.sequenceNumber >= initialSequence
       );
@@ -70,9 +54,7 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     void initialize();
   }, [sequences, initialSequence, utils.sequence.getSequenceMedia]);
 
-  // Prefetch next sequences and process more if needed
   useEffect(() => {
-    // Prefetch next 5 sequences
     const nextSequences = sequences.slice(
       currentIndex + 1,
       currentIndex + 6
@@ -81,16 +63,6 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     nextSequences.forEach((sequence) => {
       void utils.sequence.getSequenceMedia.prefetch(sequence.id);
     });
-
-    // Process more sequences if needed
-    const lastSequenceNumber = sequences[sequences.length - 1]?.sequenceNumber ?? 0;
-    if (currentIndex >= sequences.length - 5 && lastSequenceNumber < totalSequences) {
-      void processSequences.mutate({
-        bookId,
-        gutenbergId,
-        numSequences: 10,
-      });
-    }
   }, [
     currentIndex, 
     sequences, 
@@ -101,54 +73,33 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     totalSequences
   ]);
 
-  // Fetch more sequences when needed
+  // Audio playback and automatic sequence transition
   useEffect(() => {
-    if (currentIndex >= sequences.length - 3 && sequences.length < totalSequences) {
-      void fetchMoreSequences.refetch().then((result) => {
-        if (result.data) {
-          setSequences(prev => [...prev, ...result.data]);
-        }
-      });
-    }
-  }, [currentIndex, sequences.length, totalSequences, fetchMoreSequences]);
-
-  // Audio handling
-  useEffect(() => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !hasInteracted) return;
 
     const audio = audioRef.current;
+
+    if (isPlaying) {
+      audio.play().catch((e) => console.warn('Autoplay prevented:', e));
+    }
 
     const handleEnded = () => {
       if (currentIndex < sequences.length - 1) {
         setCurrentIndex(prev => prev + 1);
+        setIsPlaying(true); // Ensure next audio starts playing
+      } else {
+        setIsPlaying(false); // Stop if at the end of sequences
       }
     };
 
     const handleTimeUpdate = () => {
       if (!audio || !bookId || !currentSequence) return;
 
-      if (currentIndex >= sequences.length - 1 && audio.currentTime >= audio.duration - 0.1) {
-        const lastSequence = sequences[sequences.length - 1];
-        if (!lastSequence?.id) return;
-        
-        updateProgress.mutate({
-          bookId: bookId,
-          sequenceId: lastSequence.id,
-          timeSpent: Math.floor(audio.duration),
-          completed: true
-        }, {
-          onSuccess: () => {
-            router.push(`/books/${gutenbergId}`);
-          }
-        });
-        return;
-      }
-      
       updateProgress.mutate({
         bookId: bookId,
         sequenceId: currentSequence.id,
         timeSpent: Math.floor(audio.currentTime),
-        completed: false
+        completed: audio.currentTime >= audio.duration - 0.1,
       });
     };
 
@@ -159,15 +110,33 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
     };
-  }, [currentIndex, sequences, currentSequence?.id, gutenbergId, router, updateProgress, bookId, currentSequence]);
+  }, [currentIndex, sequences, currentSequence, isPlaying, hasInteracted, updateProgress, bookId]);
 
-  // Touch handlers
-  const handleTouchStart = (e: TouchEvent) => {
+  const handlePlayPause = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play().catch(e => console.warn('Play prevented:', e));
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleStart = () => {
+    setHasInteracted(true);
+    if (audioRef.current) {
+      audioRef.current.play().catch(e => console.warn('Play prevented:', e));
+    }
+  };
+
+  // Update touch handlers for vertical swipes
+  const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0]?.clientY ?? null);
   };
 
-  const handleTouchMove = (e: TouchEvent) => {
+  const handleTouchMove = (e: TouchEvent<HTMLDivElement>) => {
     setTouchEnd(e.targetTouches[0]?.clientY ?? null);
   };
 
@@ -175,38 +144,34 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     if (!touchStart || !touchEnd) return;
     
     const distance = touchStart - touchEnd;
-    const isUpSwipe = distance > 50;
-    const isDownSwipe = distance < -50;
+    const minSwipeDistance = 50;
+    
+    if (Math.abs(distance) < minSwipeDistance) {
+      handlePlayPause();
+      return;
+    }
+    
+    const isUpSwipe = distance > minSwipeDistance;
+    const isDownSwipe = distance < -minSwipeDistance;
     
     if (isUpSwipe && currentIndex < sequences.length - 1) {
       setCurrentIndex(prev => prev + 1);
+      setIsPlaying(true);
     }
     if (isDownSwipe && currentIndex > 0) {
       setCurrentIndex(prev => prev - 1);
+      setIsPlaying(true);
     }
     
     setTouchStart(null);
     setTouchEnd(null);
   };
 
-  const handlePlayPause = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        void audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-white" />
-          <p className="text-white">Loading your story...</p>
-        </div>
+        <Loader2 className="h-8 w-8 animate-spin text-white" />
+        <p className="text-white">Loading your story...</p>
       </div>
     );
   }
@@ -217,12 +182,23 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center">
+      {!hasInteracted && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black bg-opacity-80">
+          <button
+            onClick={handleStart}
+            className="text-lg font-bold rounded-full px-6"
+          >
+            Start Listening
+          </button>
+        </div>
+      )}
+
       <div 
         className="relative h-full w-full cursor-pointer"
+        onClick={handlePlayPause}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onClick={handlePlayPause}
       >
         {media.data?.imageUrl && (
           <Image
@@ -235,18 +211,17 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
           />
         )}
         
-        {/* Desktop Navigation Buttons */}
-        <div className="pointer-events-none absolute bottom-8 left-0 right-0 hidden items-center justify-between px-[20%] md:flex">
+        <div className="absolute bottom-8 left-0 right-0 hidden items-center justify-between px-[20%] md:flex">
           {currentIndex > 0 && (
             <button
               type="button"
+              title="Previous Sequence"
               onClick={(e) => {
                 e.stopPropagation();
-                if (currentIndex > 0) setCurrentIndex(prev => prev - 1);
+                setCurrentIndex(prev => prev - 1);
+                setIsPlaying(true); // Ensure audio resumes
               }}
-              className="pointer-events-auto rounded-full bg-black/50 p-6 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
-              aria-label="Previous sequence"
-              title="Previous sequence"
+              className="rounded-full bg-black/50 p-6 text-white"
             >
               <ChevronLeft className="h-8 w-8" />
             </button>
@@ -254,66 +229,37 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
           {currentIndex < sequences.length - 1 && (
             <button
               type="button"
+              title="Next Sequence"
               onClick={(e) => {
                 e.stopPropagation();
-                if (currentIndex < sequences.length - 1) setCurrentIndex(prev => prev + 1);
+                setCurrentIndex(prev => prev + 1);
+                setIsPlaying(true); // Ensure audio resumes
               }}
-              className="pointer-events-auto rounded-full bg-black/50 p-6 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
-              aria-label="Next sequence"
-              title="Next sequence"
+              className="rounded-full bg-black/50 p-6 text-white"
             >
               <ChevronRight className="h-8 w-8" />
             </button>
           )}
         </div>
         
-        {/* Play/Pause Indicator */}
         <div 
-          className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/50 p-4 backdrop-blur-sm transition-opacity duration-200 md:hidden ${
-            isPlaying ? 'opacity-0' : 'opacity-100'
-          }`}
+          className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/50 p-4 ${isPlaying ? 'opacity-0' : 'opacity-100'}`}
         >
-          <div className="h-8 w-8 text-white">
-            {isPlaying ? '⏸️' : '▶️'}
-          </div>
+          {isPlaying ? '⏸️' : '▶️'}
         </div>
-        
-        {/* Text Overlay - Only on mobile */}
+
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 md:hidden">
           <p className="text-center text-sm text-white">
             {currentSequence.content}
           </p>
         </div>
-
-        {/* Desktop Content */}
-        <div className="hidden md:block md:w-full">
-          <div className="mt-4 w-full">
-            <p className="mb-4 text-center text-gray-200">
-              {currentSequence.content}
-            </p>
-
-            <div className="mt-4 flex justify-center gap-4">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePlayPause();
-                }}
-                className="rounded-lg bg-white/10 px-4 py-2 hover:bg-white/20"
-              >
-                {isPlaying ? 'Pause' : 'Play'}
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Single audio element for both mobile and desktop */}
       {media.data?.audioUrl && (
         <audio
           ref={audioRef}
           src={media.data.audioUrl}
-          autoPlay={isPlaying}
-          className={`${!isPlaying ? 'hidden' : ''} md:block md:w-full`}
+          autoPlay={isPlaying && hasInteracted}
           controls={false}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
