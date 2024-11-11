@@ -19,7 +19,6 @@ interface SequencePlayerProps {
 }
 
 export function SequencePlayer({ sequences: initialSequences, initialSequence, gutenbergId, totalSequences, bookId }: SequencePlayerProps) {
-  const utils = api.useUtils();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -28,7 +27,16 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
   const router = useRouter();
   const media = api.sequence.getSequenceMedia.useQuery(currentSequence?.id ?? '');
   const updateProgress = api.sequence.updateProgress.useMutation();
-  const processSequences = api.sequence.processSequences.useMutation();
+
+  // Add logging when sequences change
+  useEffect(() => {
+    console.log('Sequences updated:', {
+      totalSequences,
+      currentLength: sequences.length,
+      currentIndex,
+      sequenceNumbers: sequences.map(s => s.sequenceNumber)
+    });
+  }, [sequences, currentIndex, totalSequences]);
 
   const fetchMoreSequences = api.sequence.getByBookId.useQuery(
     {
@@ -37,38 +45,63 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
       numberOfSequences: 10
     },
     {
-      enabled: false // Only fetch when we need to
+      enabled: false
     }
   );
 
   useEffect(() => {
-    // Prefetch next 5 sequences
-    const nextSequences = sequences.slice(
-      currentIndex + 1,
-      currentIndex + 6
-    );
-    
-    nextSequences.forEach((sequence) => {
-      void utils.sequence.getSequenceMedia.prefetch(sequence.id);
-    });
+    // When we're 3 sequences away from the end, fetch more
+    if (currentIndex >= sequences.length - 3 && sequences.length < totalSequences) {
+      console.log('Attempting to fetch more sequences:', {
+        currentIndex,
+        sequencesLength: sequences.length,
+        totalSequences,
+        startingFrom: sequences.length
+      });
+      
+      void fetchMoreSequences.refetch().then((result) => {
+        if (result.data) {
+          console.log('New sequences fetched:', {
+            count: result.data.length,
+            newSequenceNumbers: result.data.map(s => s.sequenceNumber)
+          });
+          setSequences(prev => {
+            const newSequences = [...prev, ...result.data];
+            console.log('Updated sequences array:', {
+              oldLength: prev.length,
+              newLength: newSequences.length,
+              allSequenceNumbers: newSequences.map(s => s.sequenceNumber)
+            });
+            return newSequences;
+          });
+        }
+      });
+    }
+  }, [currentIndex, sequences.length, totalSequences, fetchMoreSequences]);
 
-  }, [
-    currentIndex, 
-    sequences, 
-    utils.sequence.getSequenceMedia, 
-    processSequences, 
-    bookId, 
-    gutenbergId, 
-    totalSequences
-  ]);
-
+  // Modify the initial position effect to include logging
+  const hasSetInitialPosition = useRef(false);
   useEffect(() => {
-    // Find the starting index based on initialSequence
-    const startIndex = sequences.findIndex(seq => 
-      seq.sequenceNumber >= initialSequence
-    );
-    if (startIndex !== -1) {
-      setCurrentIndex(startIndex);
+    console.log('Initial position effect running:', {
+      hasSetInitialPosition: hasSetInitialPosition.current,
+      initialSequence,
+      currentSequences: sequences.map(s => s.sequenceNumber)
+    });
+    
+    if (!hasSetInitialPosition.current) {
+      const startIndex = sequences.findIndex(seq => 
+        seq.sequenceNumber >= initialSequence
+      );
+      console.log('Found start index:', {
+        startIndex,
+        initialSequence,
+        matchedSequenceNumber: startIndex !== -1 ? sequences[startIndex]?.sequenceNumber : null
+      });
+      
+      if (startIndex !== -1) {
+        setCurrentIndex(startIndex);
+      }
+      hasSetInitialPosition.current = true;
     }
   }, [sequences, initialSequence]);
 
@@ -78,6 +111,14 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     const audio = audioRef.current;
 
     const handleEnded = () => {
+      console.log('Audio ended:', {
+        currentIndex,
+        sequencesLength: sequences.length,
+        nextIndex: currentIndex + 1,
+        currentSequenceNumber: sequences[currentIndex]?.sequenceNumber,
+        nextSequenceNumber: sequences[currentIndex + 1]?.sequenceNumber
+      });
+      
       if (currentIndex < sequences.length - 1) {
         setCurrentIndex(prev => prev + 1);
       } else if (currentIndex === sequences.length - 1) {
@@ -116,18 +157,6 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
       audio.removeEventListener('timeupdate', handleTimeUpdate);
     };
   }, [currentIndex, sequences, currentSequence?.id, gutenbergId, router, updateProgress, bookId, currentSequence]);
-
-  useEffect(() => {
-    // When we're 3 sequences away from the end, fetch more
-    if (currentIndex >= sequences.length - 3 && sequences.length < totalSequences) {
-      console.log('Fetching more sequences...');
-      void fetchMoreSequences.refetch().then((result) => {
-        if (result.data) {
-          setSequences(prev => [...prev, ...result.data]);
-        }
-      });
-    }
-  }, [currentIndex, sequences.length, totalSequences, fetchMoreSequences]);
 
   // Touch handling state
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -214,22 +243,28 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
         <div className="pointer-events-none absolute bottom-8 left-0 right-0 hidden items-center justify-between px-[20%] md:flex">
           {currentIndex > 0 && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 if (currentIndex > 0) setCurrentIndex(prev => prev - 1);
               }}
               className="pointer-events-auto rounded-full bg-black/50 p-6 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
+              aria-label="Previous sequence"
+              title="Previous sequence"
             >
               <ChevronLeft className="h-8 w-8" />
             </button>
           )}
           {currentIndex < sequences.length - 1 && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 if (currentIndex < sequences.length - 1) setCurrentIndex(prev => prev + 1);
               }}
               className="pointer-events-auto rounded-full bg-black/50 p-6 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
+              aria-label="Next sequence"
+              title="Next sequence"
             >
               <ChevronRight className="h-8 w-8" />
             </button>

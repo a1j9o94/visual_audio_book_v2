@@ -48,18 +48,22 @@ export function GutenbergBook({ book, className = "", showDetails = true }: Gute
   };
 
   return (
-    <div className={`${showDetails ? "mt-8 rounded-xl bg-white/10 p-6" : ""} ${className}`}>
+    <div className={`${
+      showDetails 
+        ? "rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 p-6 shadow-lg" 
+        : ""
+    } ${className}`}>
       {showDetails && (
         <>
-          <h2 className="text-2xl font-bold">{book.title}</h2>
-          <p className="mt-2 text-gray-300">by {book.author}</p>
+          <h2 className="text-2xl font-bold text-white/90">{book.title}</h2>
+          <p className="mt-2 text-white/70">by {book.author}</p>
         </>
       )}
       <div className={`${showDetails ? "mt-4" : ""} flex flex-col gap-3 sm:flex-row sm:gap-4`}>
         <Button
           onClick={handleAddToLibrary}
           disabled={isAdding}
-          className="w-full"
+          className="w-full bg-white/10 hover:bg-white/20 text-white/90 border-white/10"
           variant="secondary"
         >
           <Library className="mr-2 h-4 w-4" />
@@ -69,15 +73,16 @@ export function GutenbergBook({ book, className = "", showDetails = true }: Gute
           <Button
             asChild
             variant="outline"
-            className="w-full"
+            className="w-full border-white/10 text-white/80 hover:bg-white/10 hover:text-white truncate"
           >
             <a
               href={`https://www.gutenberg.org/ebooks/${book.gutenbergId}`}
               target="_blank"
               rel="noopener noreferrer"
+              className="flex items-center justify-center"
             >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              View on Project Gutenberg
+              <ExternalLink className="mr-2 h-4 w-4 flex-shrink-0" />
+              <span className="truncate">View on Project Gutenberg</span>
             </a>
           </Button>
         )}
