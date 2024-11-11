@@ -18,7 +18,7 @@ interface ImageGenerationJob {
 
 async function generateImage(prompt: string, retryCount = 0): Promise<Buffer> {
   try {
-    console.log(`[Image Generation] Attempting to generate image with prompt: ${prompt.substring(0, 100)}...`);
+    console.log(`[Image Generation] Attempting to generate image`);
     const route = process.env.STABILITY_AI_API_URL;
     
     const payload = {
@@ -117,7 +117,7 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         try {
           console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Attempting to save image (attempt ${retryCount + 1}/${maxRetries})`);
           imageData = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
-          console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Image saved successfully: ${imageData}`);
+          console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Image saved successfully`);
         } catch (error) {
           retryCount++;
           console.error(`[Image Worker ${sequenceNumber}/${totalSequences}] Save attempt ${retryCount} failed:`, {

@@ -2,9 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
-import { api } from "~/trpc/react";
-import { useRouter } from "next/navigation";
+import { GutenbergBook } from "./gutenberg-book";
 
 export interface Book {
   id?: string;
@@ -17,40 +15,19 @@ export interface Book {
   coverImageUrl?: string;
 }
 
+// Type guard to check if a Book is a GutenbergBook
+function isGutenbergBook(book: Book): boolean {
+  return typeof book.gutenbergId === 'string';
+}
+
 interface BookListProps {
   books: Book[];
   isSearchResults?: boolean;
 }
 
 export function BookList({ books, isSearchResults }: BookListProps) {
-  const router = useRouter();
-  const [addingBook, setAddingBook] = useState<string | null>(null);
-  
-  const addToLibrary = api.book.addToLibrary.useMutation({
-    onSuccess: () => {
-      router.refresh();
-      setAddingBook(null);
-    },
-    onError: (error) => {
-      console.error('Failed to add book:', error);
-      alert(error.message);
-      setAddingBook(null);
-    },
-  });
 
   if (!books?.length) return null;
-  
-  const handleAddToLibrary = async (book: Book) => {
-    if (!book.gutenbergId) return;
-    
-    setAddingBook(book.gutenbergId);
-    addToLibrary.mutate({
-      gutenbergId: book.gutenbergId,
-      title: book.title,
-      author: book.author,
-      coverId: book.coverId,
-    });
-  };
 
   const BookContent = ({ book }: { book: Book }) => (
     <>
@@ -77,24 +54,18 @@ export function BookList({ books, isSearchResults }: BookListProps) {
   
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-      {books.map((book, index) => {
-        if (isSearchResults) {
+      {books.map((book) => {
+        if (isSearchResults && isGutenbergBook(book)) {
           return (
-            <div
-              key={book.gutenbergId ?? index}
-              className="flex flex-col gap-2 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-            >
-              <BookContent book={book} />
-              {book.gutenbergId && (
-                <button
-                  onClick={() => handleAddToLibrary(book)}
-                  disabled={addingBook === book.gutenbergId}
-                  className="mt-2 rounded-lg bg-white/10 px-4 py-2 text-center text-sm font-semibold hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {addingBook === book.gutenbergId ? 'Adding...' : 'Add to Library'}
-                </button>
-              )}
-            </div>
+            <GutenbergBook 
+              key={book.gutenbergId} 
+              book={{
+                id: book.id!,
+                gutenbergId: book.gutenbergId!,
+                title: book.title,
+                author: book.author,
+              }} 
+            />
           );
         }
 

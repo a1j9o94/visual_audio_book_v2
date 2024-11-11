@@ -97,7 +97,7 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
         try {
           console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Attempting to save audio (attempt ${retryCount + 1}/${maxRetries})`);
           audioData = await storage.saveAudio(sequence.bookId, sequenceId, buffer);
-          console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Audio saved successfully: ${audioData}`);
+          console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Audio saved successfully`);
         } catch (error) {
           retryCount++;
           console.error(`[Audio Worker ${sequenceNumber}/${totalSequences}] Save attempt ${retryCount} failed:`, {
@@ -117,7 +117,7 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
         throw new Error('Failed to save audio after all retries');
       }
 
-      console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Audio saved successfully: ${audioData}`);
+      console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Audio saved successfully`);
 
       // Update sequence status
       console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Updating sequence status`);

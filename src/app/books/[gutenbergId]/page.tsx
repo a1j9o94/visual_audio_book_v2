@@ -7,40 +7,67 @@ import { ProcessSequencesButton } from "./_components/process-sequences-button";
 import Link from "next/link";
 import { PlayCircle } from "lucide-react";
 import { RemoveFromLibraryButton } from "./_components/remove-from-library-button";
+import { GutenbergBook } from "~/app/_components/gutenberg-book";
 
-type Params = {
-  gutenbergId: string;
-};
-
-type PageProps = {
-  params: Promise<Params>;
+interface PageProps {
+  params: Promise<{
+    gutenbergId: string;
+  }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
+}
 
 export default async function BookPage({ params }: PageProps) {
   const session = await auth();
   if (!session) {
     redirect(`/login?returnUrl=/books/${(await params).gutenbergId}`);
   }
+  
   const { gutenbergId } = await params;
   
   try {
-    const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
-
+    // First try to get the book from our database
+    const bookId = await api.book.getBookIdByGutenbergId.call({ input: gutenbergId, session }, gutenbergId);
+    
+    // If it's not in our database, try to get it from Project Gutenberg
     if (!bookId) {
-      notFound();
+      const bookId = await api.book.getBookIdByGutenbergId.call({ input: gutenbergId, session }, gutenbergId);
+      if (!bookId) {
+        notFound();
+      }
+      const book = await api.book.getById.call({ input: bookId, session }, bookId);
+      
+      // If we can't find it on Gutenberg either, show the not found page
+      if (!book) {
+        notFound();
+      }
+
+      // Show the Gutenberg book page with option to add to library
+      return (
+        <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
+          <h1 className="text-4xl font-bold">Book Not Found</h1>
+          <p className="mt-4 text-gray-400">
+            This book isn&apos;t in your library yet.
+          </p>
+          <GutenbergBook book={{
+            id: book.id,
+            gutenbergId: book.gutenbergId!,
+            title: book.title,
+            author: book.author,
+          }} />
+        </main>
+      );
     }
 
-    const book = await api.book.getById(bookId);
-
-    if(!book) {
+    // Get the book details from our database
+    const book = await api.book.getById.call({ input: bookId, session }, bookId);
+    if (!book) {
       notFound();
     }
 
     // Get sequence count and user progress
-    const sequenceCount = await api.sequence.getCompletedCount({ bookId });
+    const sequenceCount = await api.sequence.getCompletedCount.call({ input: { bookId }, session }, { bookId });
     const userProgress = book.userProgress?.[0];
-    
+
     return (
       <div className="container mx-auto px-4 py-8 md:py-16">
         {/* Mobile Layout */}
@@ -193,28 +220,42 @@ export default async function BookPage({ params }: PageProps) {
       </div>
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error(message);
-    notFound();
+    console.error('Error in BookPage:', error);
+    throw error;
   }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { gutenbergId } = await params;
+  const session = await auth();
+  
   try {
-    const { gutenbergId } = await params;
-    const bookId = await api.book.getBookIdByGutenbergId(gutenbergId);
-    if(!bookId) {
-      notFound();
+    const bookId = await api.book.getBookIdByGutenbergId.call({ input: gutenbergId, session }, gutenbergId);
+    
+    if (!bookId) {
+      return {
+        title: 'Book Not Found',
+        description: 'The requested book could not be found',
+      };
     }
-    const book = await api.book.getById(bookId);
+
+    const book = await api.book.getById.call({ input: bookId, session }, bookId);
+    if (!book) {
+      return {
+        title: 'Book Not Found',
+        description: 'The requested book could not be found',
+      };
+    }
+
     return {
-      title: book?.title ?? 'Book Not Found',
-      description: `${book?.title} by ${book?.author}`,
+      title: book.title,
+      description: `${book.title} by ${book.author}`,
     };
-  } catch {
+  } catch (error) {
+    console.error('Error generating metadata:', error);
     return {
-      title: 'Book Not Found',
-      description: 'The requested book could not be found',
+      title: 'Error',
+      description: 'An error occurred while loading the book',
     };
   }
 }

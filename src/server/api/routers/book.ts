@@ -5,6 +5,8 @@ import { eq, and, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import axios from "axios";
 import { addJob } from "~/server/queue/queues";
+import { parseGutenbergText } from "~/utils/parseGutenberg";
+
 
 interface OpenLibraryBook {
   title: string;
@@ -14,6 +16,79 @@ interface OpenLibraryBook {
   first_publish_year?: number;
   language?: string[];
 }
+
+interface GutenbergBook {
+  title: string;
+  author: string;
+  gutenbergId: string;
+  coverImageUrl?: string;
+}
+
+const getGutenbergBook = async (gutenbergId: string): Promise<GutenbergBook | null> => {
+  try {
+    // First try the .txt format
+    let rawText: string | null = null;
+    try {
+      const response = await axios.get<string>(
+        `https://www.gutenberg.org/cache/epub/${gutenbergId}/pg${gutenbergId}.txt`,
+        { timeout: 5000 }
+      );
+      rawText = response.data;
+    } catch {
+      console.log('Failed to fetch .txt format, trying UTF-8...');
+      // If .txt fails, try the UTF-8 format
+      const response = await axios.get<string>(
+        `https://www.gutenberg.org/files/${gutenbergId}/${gutenbergId}-0.txt`,
+        { timeout: 5000 }
+      );
+      rawText = response.data;
+    }
+
+    if (!rawText) {
+      console.error('Failed to fetch book text from Gutenberg');
+      return null;
+    }
+
+    const metadata = await parseGutenbergText(rawText);
+    if (!metadata) {
+      console.error('Failed to parse book metadata');
+      return null;
+    }
+
+    // Check if cover image exists
+    const coverImageUrl = `https://www.gutenberg.org/cache/epub/${gutenbergId}/${gutenbergId}-cover.png`;
+    let hasCover = false;
+    try {
+      const coverResponse = await axios.head(coverImageUrl, { timeout: 2000 });
+      hasCover = coverResponse.status === 200;
+    } catch {
+      console.log('No cover image found for book:', gutenbergId);
+    }
+
+    return {
+      title: metadata.title,
+      author: metadata.author,
+      gutenbergId,
+      coverImageUrl: hasCover ? coverImageUrl : undefined,
+    };
+
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        console.log('Book not found on Gutenberg');
+        return null;
+      }
+      console.error('Axios error:', error.message);
+    } else {
+      console.error('Unknown error:', error);
+    }
+    
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Failed to fetch or parse book from Project Gutenberg',
+    });
+  }
+};
 
 export const bookRouter = createTRPCRouter({
   getAll: publicProcedure.query(async ({ ctx }) => {
@@ -94,11 +169,12 @@ export const bookRouter = createTRPCRouter({
       }).returning();
     }),
 
-  search: publicProcedure
+  searchOpenLibrary: publicProcedure
     .input(z.string())
     .query(async ({ input: query }) => {
       try {
-        const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&language=eng&fields=title,author_name,cover_i,first_publish_year,id_project_gutenberg,language`;
+        // Use OpenLibrary for search only
+        const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&language=eng&fields=title,author_name,id_project_gutenberg,language`;
         const response = await axios.get<{ docs: OpenLibraryBook[] }>(searchUrl);
         
         const booksWithGutenberg = response.data.docs
@@ -106,8 +182,6 @@ export const bookRouter = createTRPCRouter({
             title: book.title,
             author: book.author_name?.[0] ?? 'Unknown Author',
             gutenbergId: book.id_project_gutenberg?.[0] ?? null,
-            coverId: book.cover_i,
-            firstPublishYear: book.first_publish_year,
             language: book.language?.[0] ?? undefined,
           }))
           .filter((book): book is (typeof book & { gutenbergId: string }) => (
@@ -116,7 +190,15 @@ export const bookRouter = createTRPCRouter({
             (!book.language || book.language.toLowerCase() === 'eng')
           ));
 
-        return booksWithGutenberg;
+        // For each book with a Gutenberg ID, try to get the actual metadata from Gutenberg
+        const verifiedBooks = await Promise.all(
+          booksWithGutenberg.map(async (book) => {
+            const gutenbergBook = await getGutenbergBook(book.gutenbergId);
+            return gutenbergBook ?? book;
+          })
+        );
+
+        return verifiedBooks.filter((book): book is GutenbergBook => book !== null);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         throw new TRPCError({
@@ -240,12 +322,66 @@ export const bookRouter = createTRPCRouter({
   getBookIdByGutenbergId: publicProcedure
     .input(z.string())
     .query(async ({ ctx, input }) => {
-      console.log('Searching for Gutenberg ID:', input);
-      const book = await ctx.db.query.books.findFirst({
-        where: eq(books.gutenbergId, input),
-      });
-      console.log('Found book:', book?.title);
-      return book?.id ?? null;
+      const gutenbergId = String(input);
+      console.log('Searching for Gutenberg ID:', gutenbergId);
+      
+      try {
+        // Use a transaction to handle potential race conditions
+        const result = await ctx.db.transaction(async (tx) => {
+          // First try to find the existing book
+          const existingBook = await tx.query.books.findFirst({
+            where: eq(books.gutenbergId, gutenbergId),
+          });
+
+          if (existingBook) {
+            console.log('Found existing book:', existingBook.title);
+            return existingBook.id;
+          }
+
+          // If book doesn't exist, fetch from Gutenberg
+          const gutenbergBook = await getGutenbergBook(gutenbergId);
+          if (!gutenbergBook) {
+            console.log('Book not found on Gutenberg');
+            return null;
+          }
+
+          // Create the book using upsert pattern
+          const [newBook] = await tx
+            .insert(books)
+            .values({
+              gutenbergId,
+              title: gutenbergBook.title,
+              author: gutenbergBook.author,
+              status: "pending",
+              coverImageUrl: gutenbergBook.coverImageUrl,
+            })
+            .onConflictDoUpdate({
+              target: books.gutenbergId,
+              set: {
+                title: gutenbergBook.title,
+                author: gutenbergBook.author,
+                status: "pending",
+                coverImageUrl: gutenbergBook.coverImageUrl,
+              },
+            })
+            .returning();
+
+          console.log('Created new book:', newBook?.title);
+          if (!newBook) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'Failed to create book',
+            });
+          }
+          return newBook.id;
+        });
+
+        return result;
+
+      } catch (error) {
+        console.error('Error in getBookIdByGutenbergId:', error);
+        return null;
+      }
     }),
 
   removeFromLibrary: protectedProcedure

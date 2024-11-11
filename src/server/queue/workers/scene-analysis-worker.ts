@@ -79,7 +79,7 @@ export const sceneAnalysisWorker = new Worker<SceneAnalysisJob>(
         // Perform scene analysis
         const analysis = await analyzeScene(job.data.content);
         sceneDescription = analysis.sceneDescription;
-        console.log("Scene analysis result:", analysis);
+        console.log("Scene analysis result received");
 
         // Insert metadata
         await tx.insert(sequenceMetadata)

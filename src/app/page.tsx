@@ -13,7 +13,7 @@ export default async function Home({ searchParams }: PageProps) {
   const session = await auth();
   
   // Only search if there's a query
-  const searchResults = query ? await api.book.search(query) : null;
+  const searchResults = query ? await api.book.searchOpenLibrary(query) : null;
   
   // Get books based on auth status
   const libraryBooks = session 
