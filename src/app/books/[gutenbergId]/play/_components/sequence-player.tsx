@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-
-import type { TouchEvent } from 'react';
 import Image from 'next/image';
 import { api } from "~/trpc/react";
 import { useRouter } from 'next/navigation';
 import type { inferProcedureOutput } from '@trpc/server';
 import type { AppRouter } from '~/server/api/root';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import type { TouchEvent } from 'react';
 
 interface SequencePlayerProps {
   sequences: inferProcedureOutput<AppRouter['sequence']['getByBookId']>;
@@ -19,24 +18,21 @@ interface SequencePlayerProps {
 }
 
 export function SequencePlayer({ sequences: initialSequences, initialSequence, gutenbergId, totalSequences, bookId }: SequencePlayerProps) {
+  const utils = api.useUtils();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [sequences, setSequences] = useState(initialSequences);
   const currentSequence = sequences[currentIndex];
   const router = useRouter();
   const media = api.sequence.getSequenceMedia.useQuery(currentSequence?.id ?? '');
   const updateProgress = api.sequence.updateProgress.useMutation();
+  const processSequences = api.sequence.processSequences.useMutation();
 
-  // Add logging when sequences change
-  useEffect(() => {
-    console.log('Sequences updated:', {
-      totalSequences,
-      currentLength: sequences.length,
-      currentIndex,
-      sequenceNumbers: sequences.map(s => s.sequenceNumber)
-    });
-  }, [sequences, currentIndex, totalSequences]);
+  // Touch handling state
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   const fetchMoreSequences = api.sequence.getByBookId.useQuery(
     {
@@ -49,79 +45,89 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     }
   );
 
+  // Initial loading and position setup
   useEffect(() => {
-    // When we're 3 sequences away from the end, fetch more
-    if (currentIndex >= sequences.length - 3 && sequences.length < totalSequences) {
-      console.log('Attempting to fetch more sequences:', {
-        currentIndex,
-        sequencesLength: sequences.length,
-        totalSequences,
-        startingFrom: sequences.length
-      });
+    const initialize = async () => {
+      setIsLoading(true);
       
+      // Prefetch first 5 sequences
+      const initialBatch = sequences.slice(0, 5);
+      await Promise.all(
+        initialBatch.map(seq => utils.sequence.getSequenceMedia.prefetch(seq.id))
+      );
+
+      // Set initial position
+      const startIndex = sequences.findIndex(seq => 
+        seq.sequenceNumber >= initialSequence
+      );
+      if (startIndex !== -1) {
+        setCurrentIndex(startIndex);
+      }
+
+      setIsLoading(false);
+    };
+
+    void initialize();
+  }, [sequences, initialSequence, utils.sequence.getSequenceMedia]);
+
+  // Prefetch next sequences and process more if needed
+  useEffect(() => {
+    // Prefetch next 5 sequences
+    const nextSequences = sequences.slice(
+      currentIndex + 1,
+      currentIndex + 6
+    );
+    
+    nextSequences.forEach((sequence) => {
+      void utils.sequence.getSequenceMedia.prefetch(sequence.id);
+    });
+
+    // Process more sequences if needed
+    const lastSequenceNumber = sequences[sequences.length - 1]?.sequenceNumber ?? 0;
+    if (currentIndex >= sequences.length - 5 && lastSequenceNumber < totalSequences) {
+      void processSequences.mutate({
+        bookId,
+        gutenbergId,
+        numSequences: 10,
+      });
+    }
+  }, [
+    currentIndex, 
+    sequences, 
+    utils.sequence.getSequenceMedia, 
+    processSequences, 
+    bookId, 
+    gutenbergId, 
+    totalSequences
+  ]);
+
+  // Fetch more sequences when needed
+  useEffect(() => {
+    if (currentIndex >= sequences.length - 3 && sequences.length < totalSequences) {
       void fetchMoreSequences.refetch().then((result) => {
         if (result.data) {
-          console.log('New sequences fetched:', {
-            count: result.data.length,
-            newSequenceNumbers: result.data.map(s => s.sequenceNumber)
-          });
-          setSequences(prev => {
-            const newSequences = [...prev, ...result.data];
-            console.log('Updated sequences array:', {
-              oldLength: prev.length,
-              newLength: newSequences.length,
-              allSequenceNumbers: newSequences.map(s => s.sequenceNumber)
-            });
-            return newSequences;
-          });
+          setSequences(prev => [...prev, ...result.data]);
         }
       });
     }
   }, [currentIndex, sequences.length, totalSequences, fetchMoreSequences]);
 
-  // Modify the initial position effect to include logging
-  const hasSetInitialPosition = useRef(false);
-  useEffect(() => {
-    console.log('Initial position effect running:', {
-      hasSetInitialPosition: hasSetInitialPosition.current,
-      initialSequence,
-      currentSequences: sequences.map(s => s.sequenceNumber)
-    });
-    
-    if (!hasSetInitialPosition.current) {
-      const startIndex = sequences.findIndex(seq => 
-        seq.sequenceNumber >= initialSequence
-      );
-      console.log('Found start index:', {
-        startIndex,
-        initialSequence,
-        matchedSequenceNumber: startIndex !== -1 ? sequences[startIndex]?.sequenceNumber : null
-      });
-      
-      if (startIndex !== -1) {
-        setCurrentIndex(startIndex);
-      }
-      hasSetInitialPosition.current = true;
-    }
-  }, [sequences, initialSequence]);
-
+  // Audio handling
   useEffect(() => {
     if (!audioRef.current) return;
 
     const audio = audioRef.current;
 
     const handleEnded = () => {
-      console.log('Audio ended:', {
-        currentIndex,
-        sequencesLength: sequences.length,
-        nextIndex: currentIndex + 1,
-        currentSequenceNumber: sequences[currentIndex]?.sequenceNumber,
-        nextSequenceNumber: sequences[currentIndex + 1]?.sequenceNumber
-      });
-      
       if (currentIndex < sequences.length - 1) {
         setCurrentIndex(prev => prev + 1);
-      } else if (currentIndex === sequences.length - 1) {
+      }
+    };
+
+    const handleTimeUpdate = () => {
+      if (!audio || !bookId || !currentSequence) return;
+
+      if (currentIndex >= sequences.length - 1 && audio.currentTime >= audio.duration - 0.1) {
         const lastSequence = sequences[sequences.length - 1];
         if (!lastSequence?.id) return;
         
@@ -135,11 +141,8 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
             router.push(`/books/${gutenbergId}`);
           }
         });
+        return;
       }
-    };
-
-    const handleTimeUpdate = () => {
-      if (!audio || !bookId || !currentSequence) return;
       
       updateProgress.mutate({
         bookId: bookId,
@@ -158,27 +161,22 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     };
   }, [currentIndex, sequences, currentSequence?.id, gutenbergId, router, updateProgress, bookId, currentSequence]);
 
-  // Touch handling state
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-  const minSwipeDistance = 50;
-
   // Touch handlers
-  const onTouchStart = (e: TouchEvent) => {
+  const handleTouchStart = (e: TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0]?.clientY ?? null);
   };
 
-  const onTouchMove = (e: TouchEvent) => {
+  const handleTouchMove = (e: TouchEvent) => {
     setTouchEnd(e.targetTouches[0]?.clientY ?? null);
   };
 
-  const onTouchEnd = () => {
+  const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
     
     const distance = touchStart - touchEnd;
-    const isUpSwipe = distance > minSwipeDistance;
-    const isDownSwipe = distance < -minSwipeDistance;
+    const isUpSwipe = distance > 50;
+    const isDownSwipe = distance < -50;
     
     if (isUpSwipe && currentIndex < sequences.length - 1) {
       setCurrentIndex(prev => prev + 1);
@@ -191,7 +189,7 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     setTouchEnd(null);
   };
 
-  const togglePlayPause = () => {
+  const handlePlayPause = () => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
@@ -202,17 +200,16 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     }
   };
 
-  // Add this new effect after the other useEffects
-  useEffect(() => {
-    // When sequence changes, ensure audio starts playing
-    if (audioRef.current) {
-      void audioRef.current.play().catch(() => {
-        // Handle autoplay restrictions if needed
-        console.log('Autoplay prevented by browser');
-      });
-      setIsPlaying(true);
-    }
-  }, [currentIndex]);
+  if (isLoading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-white" />
+          <p className="text-white">Loading your story...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentSequence?.id || !media.data) {
     return null;
@@ -220,15 +217,14 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
 
   return (
     <div className="relative flex h-full flex-col items-center justify-center">
-      {/* Image Container - Full screen on mobile */}
       <div 
         className="relative h-full w-full cursor-pointer"
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onClick={togglePlayPause}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={handlePlayPause}
       >
-        {media.data.imageUrl && (
+        {media.data?.imageUrl && (
           <Image
             src={media.data.imageUrl}
             alt={`Sequence ${currentSequence.sequenceNumber}`}
@@ -300,7 +296,7 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  togglePlayPause();
+                  handlePlayPause();
                 }}
                 className="rounded-lg bg-white/10 px-4 py-2 hover:bg-white/20"
               >
@@ -312,7 +308,7 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
       </div>
 
       {/* Single audio element for both mobile and desktop */}
-      {media.data.audioUrl && (
+      {media.data?.audioUrl && (
         <audio
           ref={audioRef}
           src={media.data.audioUrl}
