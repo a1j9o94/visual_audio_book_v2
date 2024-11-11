@@ -22,7 +22,8 @@
     "worker:start": "tsx src/server/queue/worker.ts",
     "test:queue": "tsx src/server/queue/test.ts",
     "test:storage": "cross-env NODE_ENV=production node -r dotenv/config node_modules/.bin/tsx src/server/storage/test.ts",
-    "update-covers": "tsx src/utils/update-book-covers.ts"
+    "update-covers": "tsx src/utils/update-book-covers.ts",
+    "update-sequence-counts": "tsx src/utils/update-sequence-counts.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.18.0",

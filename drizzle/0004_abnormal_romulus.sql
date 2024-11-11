@@ -1,0 +1,1 @@
+ALTER TABLE "visual_audio_book_v2_book" ADD COLUMN "completed_sequence_count" integer DEFAULT 0 NOT NULL;

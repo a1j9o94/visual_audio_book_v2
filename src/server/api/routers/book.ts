@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { books, userBookProgress, sequences, sequenceMedia, userSequenceHistory } from "~/server/db/schema";
+import { books, userBookProgress, sequences, userSequenceHistory } from "~/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import axios from "axios";
@@ -132,12 +132,14 @@ export const bookRouter = createTRPCRouter({
       if (!book) return null;
       console.log('Book found:', book.title);
 
-      const bookSequences = await ctx.db.select({
-        sequence: sequences,
-        media: sequenceMedia,
-      })
+      // Only select the essential sequence fields
+      const bookSequences = await ctx.db
+        .select({
+          id: sequences.id,
+          sequenceNumber: sequences.sequenceNumber,
+          status: sequences.status,
+        })
         .from(sequences)
-        .leftJoin(sequenceMedia, eq(sequences.id, sequenceMedia.sequenceId))
         .where(and(
           eq(sequences.bookId, input),
           eq(sequences.status, 'completed')
@@ -148,7 +150,7 @@ export const bookRouter = createTRPCRouter({
 
       return {
         ...book,
-        sequences
+        sequences: bookSequences
       };
     }),
 

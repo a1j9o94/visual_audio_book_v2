@@ -1,8 +1,8 @@
 import "dotenv/config";
 import { Worker } from "bullmq";
 import { queueOptions, QUEUE_NAMES } from "../config";
-import { sequences, sequenceMedia } from "~/server/db/schema";
-import { eq } from "drizzle-orm";
+import { sequences, sequenceMedia, books } from "~/server/db/schema";
+import { eq, sql } from "drizzle-orm";
 import axios from "axios";
 import { getMediaStorage } from "~/server/storage";
 import FormData from "form-data";
@@ -157,11 +157,17 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
 
       if (media?.audioData && media?.imageData) {
         console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Sequence complete`);
-        await withRetry(() =>
-          db.update(sequences)
+        await withRetry(() => db.transaction(async (tx) => {
+          await tx.update(sequences)
             .set({ status: 'completed' })
-            .where(eq(sequences.id, sequenceId))
-        );
+            .where(eq(sequences.id, sequenceId));
+          
+          await tx.update(books)
+            .set({ 
+              completedSequenceCount: sql`${books.completedSequenceCount} + 1` 
+            })
+            .where(eq(books.id, sequence.bookId ?? ''));
+        }));
       }
 
       return { sequenceId, imageData };

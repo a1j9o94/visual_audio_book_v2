@@ -24,7 +24,8 @@ export const books = pgTable(`${tablePrefix}book`, {
   status: text("status").notNull().default('pending'),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedSequenceCount: integer("completed_sequence_count").notNull().default(0),
 });
 
 export const characters = pgTable(`${tablePrefix}character`, {

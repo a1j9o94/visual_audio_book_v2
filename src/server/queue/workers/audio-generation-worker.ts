@@ -2,8 +2,8 @@ import { Worker } from "bullmq";
 import { queueOptions, QUEUE_NAMES } from "../config";
 import { OpenAI, APIError } from 'openai';
 import { getMediaStorage } from "~/server/storage";
-import { sequences, sequenceMedia } from "~/server/db/schema";
-import { eq } from "drizzle-orm";
+import { sequences, sequenceMedia, books } from "~/server/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { getDb, closeDb } from "~/server/db/utils";
 import { withRetry } from "~/server/db/utils";
 
@@ -136,11 +136,17 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
 
       if (media?.imageData && media?.audioData) {
         console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Sequence complete`);
-        await withRetry(() =>
-          db.update(sequences)
+        await withRetry(() => db.transaction(async (tx) => {
+          await tx.update(sequences)
             .set({ status: 'completed' })
-            .where(eq(sequences.id, sequenceId))
-        );
+            .where(eq(sequences.id, sequenceId));
+          
+          await tx.update(books)
+            .set({ 
+              completedSequenceCount: sql`${books.completedSequenceCount} + 1` 
+            })
+            .where(eq(books.id, sequence.bookId ?? ''));
+        }));
       }
 
       return { sequenceId, audioData };

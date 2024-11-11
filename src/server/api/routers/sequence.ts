@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import type { sequenceMetadata  } from "~/server/db/schema";
-import { sequences, userSequenceHistory, userBookProgress, sequenceMedia, books } from "~/server/db/schema";
-import { eq, and, asc, sql, gte, lte, } from "drizzle-orm";
+import type { sequenceMetadata } from "~/server/db/schema";
+import { sequences, userSequenceHistory, userBookProgress, sequenceMedia } from "~/server/db/schema";
+import { eq, and, asc, sql, gte, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { addJob } from "~/server/queue/queues";
+import type { DbType } from "~/server/db";
+import { books } from "~/server/db/schema";
 
 // Helper function to create data URLs
 function createMediaUrls(media: typeof sequenceMedia.$inferSelect | null) {
@@ -29,6 +31,16 @@ type SequenceWithMedia = typeof sequences.$inferSelect & {
     };
   }[];
 };
+
+// Keep track of pending updates
+const pendingUpdates = new Map<string, {
+  timeSpent: number;
+  lastUpdate: number;
+  timer: NodeJS.Timeout | null;
+  processingPromise: Promise<void> | null;
+}>();
+
+const BATCH_INTERVAL = 10000; // 10 seconds
 
 export const sequenceRouter = createTRPCRouter({
   getByBookId: publicProcedure
@@ -111,33 +123,45 @@ export const sequenceRouter = createTRPCRouter({
       bookId: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { sequenceId, timeSpent, completed, bookId } = input;
-      
-      await ctx.db.transaction(async (tx) => {
-        // Update sequence history
-        await tx.insert(userSequenceHistory).values({
-          userId: ctx.session.user.id,
-          sequenceId,
-          timeSpent,
-          completed,
-        });
+      const { sequenceId, timeSpent, completed } = input;
+      const userId = ctx.session.user.id;
+      const key = `${userId}-${sequenceId}`;
 
-        const sequence = await tx.query.sequences.findFirst({
-          where: eq(sequences.id, sequenceId),
-        });
+      // If this is a completion event, process it immediately
+      if (completed) {
+        await processUpdate(ctx, input, userId);
+        return;
+      }
 
-        // Update book progress
-        await tx.update(userBookProgress)
-          .set({
-            totalTimeSpent: sql`${userBookProgress.totalTimeSpent} + ${timeSpent}`,
-            lastReadAt: new Date(),
-            lastSequenceNumber: sequence?.sequenceNumber ?? 0,
-          })
-          .where(and(
-            eq(userBookProgress.userId, ctx.session.user.id),
-            eq(userBookProgress.bookId, bookId)
-          ));
-      });
+      // Get or create pending update
+      const pending = pendingUpdates.get(key) ?? {
+        timeSpent: 0,
+        lastUpdate: Date.now(),
+        timer: null,
+        processingPromise: null,
+      };
+
+      // Add new time to accumulated time
+      pending.timeSpent += timeSpent;
+
+      // Clear existing timer if any
+      if (pending.timer) {
+        clearTimeout(pending.timer);
+      }
+
+      // Set new timer
+      pending.timer = setTimeout(() => {
+        // Store the promise for potential cleanup
+        pending.processingPromise = processUpdate(ctx, {
+          ...input,
+          timeSpent: pending.timeSpent,
+        }, userId).finally(() => {
+          pendingUpdates.delete(key);
+        });
+      }, BATCH_INTERVAL);
+
+      // Store updated pending state
+      pendingUpdates.set(key, pending);
     }),
 
   getByBookIdAndNumber: publicProcedure
@@ -186,28 +210,12 @@ export const sequenceRouter = createTRPCRouter({
   getCompletedCount: publicProcedure
     .input(z.object({ bookId: z.string() }))
     .query(async ({ ctx, input: { bookId } }) => {
-      console.log('Starting getCompletedCount for bookId:', bookId);
+      const book = await ctx.db.query.books.findFirst({
+        where: eq(books.id, bookId),
+        columns: { completedSequenceCount: true }
+      });
       
-      try {
-        const result = await ctx.db
-          .select({
-            count: sql`count(*)`
-          })
-          .from(sequences)
-          .where(and(
-            eq(sequences.bookId, bookId),
-            eq(sequences.status, "completed")
-          ));
-        
-        console.log('Raw count result:', result);
-        const count = Number(result[0]?.count ?? 0);
-        console.log('Processed count:', count);
-        
-        return count;
-      } catch (error) {
-        console.error('Error in getCompletedCount:', error);
-        throw error;
-      }
+      return book?.completedSequenceCount ?? 0;
     }),
   processSequences: publicProcedure
     .input(z.object({ bookId: z.string(), gutenbergId: z.string(), numSequences: z.number() }))
@@ -234,3 +242,45 @@ export const sequenceRouter = createTRPCRouter({
       });
     }),
 }); 
+
+async function processUpdate(
+  ctx: { db: DbType },
+  input: {
+    sequenceId: string;
+    timeSpent: number;
+    completed: boolean;
+    bookId: string;
+  },
+  userId: string
+): Promise<void> {
+  const { sequenceId, timeSpent, completed, bookId } = input;
+
+  await ctx.db.transaction(async (tx) => {
+    // Update sequence history
+    await tx.insert(userSequenceHistory).values({
+      userId,
+      sequenceId,
+      timeSpent,
+      completed,
+    });
+
+    const sequence = await tx.query.sequences.findFirst({
+      where: eq(sequences.id, sequenceId),
+      columns: {
+        sequenceNumber: true,
+      },
+    });
+
+    // Update book progress
+    await tx.update(userBookProgress)
+      .set({
+        totalTimeSpent: sql`${userBookProgress.totalTimeSpent} + ${timeSpent}`,
+        lastReadAt: new Date(),
+        lastSequenceNumber: sequence?.sequenceNumber ?? 0,
+      })
+      .where(and(
+        eq(userBookProgress.userId, userId),
+        eq(userBookProgress.bookId, bookId)
+      ));
+  });
+}
