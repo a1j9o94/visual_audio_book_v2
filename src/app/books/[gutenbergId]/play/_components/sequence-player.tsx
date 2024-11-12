@@ -34,6 +34,15 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   useEffect(() => {
+    // Disable scrolling on the body when component mounts
+    document.body.style.overflow = 'hidden';
+    return () => {
+      // Re-enable scrolling when component unmounts
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
+
+  useEffect(() => {
     const initialize = async () => {
       setIsLoading(true);
       const initialBatch = sequences.slice(0, 5);
