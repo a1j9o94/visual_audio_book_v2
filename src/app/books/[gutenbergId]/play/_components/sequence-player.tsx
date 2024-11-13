@@ -23,6 +23,7 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
   const [isLoading, setIsLoading] = useState(true);
   const [hasInteracted, setHasInteracted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const nextAudioRef = useRef<HTMLAudioElement>(null);
   const [sequences] = useState(initialSequences);
   const currentSequence = sequences[currentIndex];
   const media = api.sequence.getSequenceMedia.useQuery(currentSequence?.id ?? '');
@@ -34,8 +35,11 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   useEffect(() => {
-    // Disable scrolling on the body when component mounts
-    document.body.style.overflow = 'hidden';
+    // Only disable scrolling on mobile devices
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      document.body.style.overflow = 'hidden';
+    }
     return () => {
       // Re-enable scrolling when component unmounts
       document.body.style.overflow = 'auto';
@@ -82,34 +86,56 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     totalSequences
   ]);
 
-  // Audio playback and automatic sequence transition
+  // Modified audio playback logic
   useEffect(() => {
     if (!audioRef.current || !hasInteracted) return;
 
     const audio = audioRef.current;
+    const nextAudio = nextAudioRef.current;
+    let hasStartedNext = false; // Flag to prevent double-playing
 
     if (isPlaying) {
       audio.play().catch((e) => console.warn('Autoplay prevented:', e));
     }
 
-    const handleEnded = () => {
-      if (currentIndex < sequences.length - 1) {
-        setCurrentIndex(prev => prev + 1);
-        setIsPlaying(true); // Ensure next audio starts playing
-      } else {
-        setIsPlaying(false); // Stop if at the end of sequences
-      }
-    };
-
     const handleTimeUpdate = () => {
       if (!audio || !bookId || !currentSequence) return;
 
-      updateProgress.mutate({
-        bookId: bookId,
-        sequenceId: currentSequence.id,
-        timeSpent: Math.floor(audio.currentTime),
-        completed: audio.currentTime >= audio.duration - 0.1,
-      });
+      // Start the next audio slightly before the current one ends
+      if (nextAudio && 
+          !hasStartedNext && 
+          audio.duration - audio.currentTime < 0.3) {
+        hasStartedNext = true;
+        nextAudio.play().catch(e => console.warn('Next audio play prevented:', e));
+      }
+
+      // Only send updates every second or when completed
+      if (Math.floor(audio.currentTime) % 1 === 0 || 
+          audio.currentTime >= audio.duration - 0.1) {
+        updateProgress.mutate({
+          bookId: bookId,
+          sequenceId: currentSequence.id,
+          timeSpent: Math.floor(audio.currentTime),
+          completed: audio.currentTime >= audio.duration - 0.1,
+        });
+      }
+    };
+
+    const handleEnded = () => {
+      if (currentIndex < sequences.length - 1) {
+        setCurrentIndex(prev => prev + 1);
+        setIsPlaying(true);
+        
+        // Properly swap the audio elements
+        if (nextAudio) {
+          audio.src = nextAudio.src;
+          audio.load();
+          nextAudio.src = ''; // Clear the next audio source
+          hasStartedNext = false; // Reset the flag
+        }
+      } else {
+        setIsPlaying(false);
+      }
     };
 
     audio.addEventListener('ended', handleEnded);
@@ -118,8 +144,27 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
     return () => {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
+      hasStartedNext = false; // Reset flag on cleanup
     };
   }, [currentIndex, sequences, currentSequence, isPlaying, hasInteracted, updateProgress, bookId]);
+
+  // Preload the next audio only when current sequence changes
+  useEffect(() => {
+    if (!sequences[currentIndex + 1]) return;
+    
+    const preloadNextAudio = async () => {
+      const nextSequenceMedia = await utils.sequence.getSequenceMedia.fetch(
+        sequences[currentIndex + 1]?.id ?? ''
+      );
+      
+      if (nextAudioRef.current && nextSequenceMedia?.audioUrl) {
+        nextAudioRef.current.src = nextSequenceMedia.audioUrl;
+        void nextAudioRef.current.load();
+      }
+    };
+
+    void preloadNextAudio();
+  }, [currentIndex, sequences, utils.sequence.getSequenceMedia]);
 
   const handlePlayPause = () => {
     if (audioRef.current) {
@@ -265,14 +310,21 @@ export function SequencePlayer({ sequences: initialSequences, initialSequence, g
       </div>
 
       {media.data?.audioUrl && (
-        <audio
-          ref={audioRef}
-          src={media.data.audioUrl}
-          autoPlay={isPlaying && hasInteracted}
-          controls={false}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-        />
+        <>
+          <audio
+            ref={audioRef}
+            src={media.data.audioUrl}
+            autoPlay={isPlaying && hasInteracted}
+            controls={false}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+          />
+          <audio
+            ref={nextAudioRef}
+            controls={false}
+            className="hidden"
+          />
+        </>
       )}
     </div>
   );

@@ -38,6 +38,11 @@ export const statusCheckQueue = new Queue<JobData['data']>(
   queueOptions
 );
 
+export const progressUpdateQueue = new Queue<JobData['data']>(
+  QUEUE_NAMES.PROGRESS_UPDATE,
+  queueOptions
+);
+
 // Setup repeatable jobs - only for status check
 async function setupRepeatableJobs() {
   // Status check job only
@@ -67,6 +72,7 @@ export const addJob = async (jobData: JobData) => {
     'scene-analysis': sceneAnalysisQueue,
     'cleanup': cleanupQueue,
     'status-check': statusCheckQueue,
+    'progress-update': progressUpdateQueue,
   }[jobData.type];
 
   if (!queue) {

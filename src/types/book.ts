@@ -5,6 +5,10 @@ type RouterOutput = inferRouterOutputs<AppRouter>;
 
 export type Book = RouterOutput["book"]["getById"];
 
+export type Sequence = RouterOutput["sequence"]["getById"];
+
+export type SequenceMedia = RouterOutput["sequence"]["getSequenceMedia"];
+
 export interface APISequence {
   id: string;
   sequenceNumber: number;

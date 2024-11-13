@@ -43,6 +43,14 @@ export interface BookProcessingJob {
     timestamp: number;
   }
   
+  export interface ProgressUpdateJob {
+    userId: string;
+    sequenceId: string;
+    bookId: string;
+    timeSpent: number;
+    completed: boolean;
+  }
+  
   export type JobData =
     | { type: 'book-processing'; data: BookProcessingJob }
     | { type: 'sequence-processing'; data: SequenceProcessingJob }
@@ -50,4 +58,5 @@ export interface BookProcessingJob {
     | { type: 'image-generation'; data: ImageGenerationJob }
     | { type: 'scene-analysis'; data: SceneAnalysisJob }
     | { type: 'cleanup'; data: CleanupJob }
-    | { type: 'status-check'; data: StatusCheckJob };
+    | { type: 'status-check'; data: StatusCheckJob }
+    | { type: 'progress-update'; data: ProgressUpdateJob };

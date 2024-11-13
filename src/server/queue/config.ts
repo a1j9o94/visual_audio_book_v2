@@ -27,6 +27,7 @@ export const QUEUE_NAMES = {
   SCENE_ANALYSIS: 'scene-analysis',
   CLEANUP: 'cleanup',
   STATUS_CHECK: 'status-check',
+  PROGRESS_UPDATE: 'progress-update',
 } as const;
 
 export type QueueName = typeof QUEUE_NAMES[keyof typeof QUEUE_NAMES];

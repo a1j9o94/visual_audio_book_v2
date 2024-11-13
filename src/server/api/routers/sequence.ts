@@ -1,11 +1,10 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import type { sequenceMetadata } from "~/server/db/schema";
-import { sequences, userSequenceHistory, userBookProgress, sequenceMedia } from "~/server/db/schema";
-import { eq, and, asc, sql, gte, lte } from "drizzle-orm";
+import { sequences, sequenceMedia } from "~/server/db/schema";
+import { eq, and, asc, gte, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { addJob } from "~/server/queue/queues";
-import type { DbType } from "~/server/db";
 import { books } from "~/server/db/schema";
 
 // Helper function to create data URLs
@@ -157,15 +156,25 @@ export const sequenceRouter = createTRPCRouter({
           });
         }
 
-        // Process update immediately
-        await processUpdate(ctx, input, userId);
+        // Add to progress update queue instead of processing immediately
+        await addJob({
+          type: 'progress-update',
+          data: {
+            userId,
+            sequenceId: input.sequenceId,
+            bookId: input.bookId,
+            timeSpent: input.timeSpent,
+            completed: input.completed,
+          },
+        });
+
         return { success: true };
 
       } catch (error) {
-        console.error('Error updating progress:', error);
+        console.error('Error queueing progress update:', error);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to update progress',
+          message: 'Failed to queue progress update',
           cause: error,
         });
       }
@@ -249,76 +258,3 @@ export const sequenceRouter = createTRPCRouter({
       });
     }),
 }); 
-
-async function processUpdate(
-  ctx: { db: DbType },
-  input: {
-    sequenceId: string;
-    timeSpent: number;
-    completed: boolean;
-    bookId: string;
-  },
-  userId: string
-): Promise<void> {
-  try {
-    await ctx.db.transaction(async (tx) => {
-      // Ensure userBookProgress record exists
-      const progress = await tx.query.userBookProgress.findFirst({
-        where: and(
-          eq(userBookProgress.userId, userId),
-          eq(userBookProgress.bookId, input.bookId)
-        ),
-      });
-
-      if (!progress) {
-        // Insert new userBookProgress record
-        await tx.insert(userBookProgress).values({
-          userId,
-          bookId: input.bookId,
-          lastSequenceNumber: 0,
-          lastReadAt: new Date(),
-          totalTimeSpent: 0,
-          isComplete: false,
-          readingPreferences: {}, // Initialize if necessary
-          updatedAt: new Date(),
-        });
-      }
-
-      // Update sequence history
-      await tx.insert(userSequenceHistory).values({
-        userId,
-        sequenceId: input.sequenceId,
-        timeSpent: input.timeSpent,
-        completed: input.completed,
-      });
-
-      // Get sequence number
-      const sequence = await tx.query.sequences.findFirst({
-        where: eq(sequences.id, input.sequenceId),
-        columns: {
-          sequenceNumber: true,
-        },
-      });
-
-      // Update book progress
-      await tx.update(userBookProgress)
-        .set({
-          totalTimeSpent: sql`${userBookProgress.totalTimeSpent} + ${input.timeSpent}`,
-          lastReadAt: new Date(),
-          lastSequenceNumber: sequence?.sequenceNumber ?? 0,
-          updatedAt: new Date(),
-        })
-        .where(and(
-          eq(userBookProgress.userId, userId),
-          eq(userBookProgress.bookId, input.bookId)
-        ));
-    });
-  } catch (error) {
-    console.error('Error in processUpdate:', error);
-    throw new TRPCError({
-      code: 'INTERNAL_SERVER_ERROR',
-      message: 'Failed to process update',
-      cause: error,
-    });
-  }
-}
