@@ -51,10 +51,10 @@ NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="your-secret-here"
 DISCORD_CLIENT_ID="your-discord-client-id"
 DISCORD_CLIENT_SECRET="your-discord-client-secret"
+```
 
 ### TODO
-- [ ] Improve UI/UX
+- [ ] Implement character consistency with: https://qinghew.github.io/CharacterFactory/
 - [ ] Add automatic sequence generation when a book is added to someones library for the first time
-- [ ] Implement continue reading feature
 - [ ] Implement bookmarks
 - [ ] Implement reading statistics
