@@ -24,8 +24,6 @@ export interface APISequence {
     sequenceId: string;
     audioUrl: string | null;
     imageUrl: string | null;
-    audioData: string | null;
-    imageData: string | null;
   } | null;
 }
 

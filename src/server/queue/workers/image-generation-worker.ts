@@ -109,14 +109,14 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
       const storage = getMediaStorage();
 
       // Save the image file with retries and detailed logging
-      let imageData: string | undefined;
+      let imageUrl: URL | undefined;
       let retryCount = 0;
       const maxRetries = 3;
 
-      while (!imageData && retryCount < maxRetries) {
+      while (!imageUrl && retryCount < maxRetries) {
         try {
           console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Attempting to save image (attempt ${retryCount + 1}/${maxRetries})`);
-          imageData = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
+          imageUrl = await storage.saveImage(sequence.bookId, sequenceId, imageBuffer);
           console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Image saved successfully`);
         } catch (error) {
           retryCount++;
@@ -133,7 +133,7 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         }
       }
 
-      if (!imageData) {
+      if (!imageUrl) {
         throw new Error('Failed to save image after all retries');
       }
 
@@ -155,7 +155,7 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         })
       );
 
-      if (media?.audioData && media?.imageData) {
+      if (media?.audioUrl && media?.imageUrl) {
         console.log(`[Image Worker ${sequenceNumber}/${totalSequences}] Sequence complete`);
         await withRetry(() => db.transaction(async (tx) => {
           await tx.update(sequences)
@@ -170,7 +170,7 @@ export const imageGenerationWorker = new Worker<ImageGenerationJob>(
         }));
       }
 
-      return { sequenceId, imageData };
+      return { sequenceId, imageUrl };
     } catch (error) {
       console.error(`[Image Worker ${sequenceNumber}/${totalSequences}] Fatal error:`, {
         error: error instanceof Error ? error.message : 'Unknown error',

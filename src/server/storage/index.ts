@@ -1,81 +1,120 @@
 // src/server/storage/index.ts
 import { db } from "~/server/db";
 import { sequenceMedia } from "~/server/db/schema";
-import { eq } from "drizzle-orm";
+import { s3Client } from "./minioClient";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 // Media storage interface
 interface MediaStorage {
-  saveAudio(bookId: string, sequenceId: string, buffer: Buffer): Promise<string>;
-  saveImage(bookId: string, sequenceId: string, buffer: Buffer): Promise<string>;
-  getAudioUrl(sequenceId: string): Promise<string>;
-  getImageUrl(sequenceId: string): Promise<string>;
+  saveAudio(bookId: string, sequenceId: string, buffer: Buffer): Promise<URL>;
+  saveImage(bookId: string, sequenceId: string, buffer: Buffer): Promise<URL>;
+  getAudioUrl(sequenceId: string): Promise<URL>;
+  getImageUrl(sequenceId: string): Promise<URL>;
 }
 
-// Database storage implementation
-export class DatabaseMediaStorage implements MediaStorage {
-  async saveAudio(_bookId: string, sequenceId: string, buffer: Buffer): Promise<string> {
-    const base64Data = buffer.toString('base64');
+export class S3MediaStorage implements MediaStorage {
+  private readonly bucketName = process.env.MINIO_BUCKET_NAME;
+  private readonly baseUrl = process.env.MINIO_ENDPOINT; // MinIO host URL
+
+  async saveAudio(bookId: string, sequenceId: string, buffer: Buffer): Promise<URL> {
+    const key = `audio/${bookId}/${sequenceId}.mp3`;
     
-    await db.insert(sequenceMedia).values({
-      sequenceId,
-      audioData: base64Data,
-      generatedAt: new Date(),
-    }).onConflictDoUpdate({
-      target: [sequenceMedia.sequenceId],
-      set: {
-        audioData: base64Data,
-        generatedAt: new Date(),
-      }
-    });
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: "audio/mpeg",
+      })
+    );
 
-    return `data:audio/mpeg;base64,${base64Data}`;
-  }
+    const url = `${this.baseUrl}/${this.bucketName}/${key}`;
 
-  async saveImage(bookId: string, sequenceId: string, buffer: Buffer): Promise<string> {
-    const base64Data = buffer.toString('base64');
-    
-    await db.insert(sequenceMedia).values({
-      sequenceId,
-      imageData: base64Data,
-      generatedAt: new Date(),
-    }).onConflictDoUpdate({
-      target: [sequenceMedia.sequenceId],
-      set: {
-        imageData: base64Data,
-        generatedAt: new Date(),
-      }
-    });
-
-    return `data:image/png;base64,${base64Data}`;
-  }
-
-  async getAudioUrl(sequenceId: string): Promise<string> {
-    const result = await db.query.sequenceMedia.findFirst({
-      where: eq(sequenceMedia.sequenceId, sequenceId),
-      columns: { audioData: true }
-    });
-
-    if (!result?.audioData) {
-      throw new Error(`No audio found for sequence ${sequenceId}`);
+    if (!url) {
+      throw new Error(`Failed to save audio for sequence ${sequenceId}`);
     }
 
-    return `data:audio/mpeg;base64,${result.audioData}`;
-  }
-
-  async getImageUrl(sequenceId: string): Promise<string> {
-    const result = await db.query.sequenceMedia.findFirst({
-      where: eq(sequenceMedia.sequenceId, sequenceId),
-      columns: { imageData: true }
-    });
-
-    if (!result?.imageData) {
-      throw new Error(`No image found for sequence ${sequenceId}`);
+    if (!db) {
+      throw new Error(`Database is not initialized`);
     }
 
-    return `data:image/png;base64,${result.imageData}`;
+    if (!isValidUrl(url)) {
+      throw new Error(`Invalid URL format for sequence ${sequenceId}`);
+    }
+
+    await db.insert(sequenceMedia)
+      .values({ 
+        sequenceId,
+        audioUrl: url,
+        updatedAt: new Date() 
+      })
+      .onConflictDoUpdate({
+        target: sequenceMedia.sequenceId,
+        set: {
+          audioUrl: url,
+          updatedAt: new Date()
+        }
+      });
+
+    return new URL(url);
+  }
+
+  async saveImage(bookId: string, sequenceId: string, buffer: Buffer): Promise<URL> {
+    const key = `images/${bookId}/${sequenceId}.png`;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: "image/png",
+      })
+    );
+    
+    const url = `${this.baseUrl}/${this.bucketName}/${key}`;
+
+    if (!url) { 
+      throw new Error(`Failed to save image for sequence ${sequenceId}`);
+    }
+
+    await db.insert(sequenceMedia)
+      .values({ 
+        sequenceId,
+        imageUrl: url,
+        updatedAt: new Date() 
+      })
+      .onConflictDoUpdate({
+        target: sequenceMedia.sequenceId,
+        set: {
+          imageUrl: url,
+          updatedAt: new Date()
+        }
+      });
+
+    return new URL(url);
+  }
+
+  async getAudioUrl(sequenceId: string): Promise<URL> {
+    const key = `audio/${sequenceId}.mp3`;
+    return new URL(`${this.baseUrl}/${this.bucketName}/${key}`);
+  }
+
+  async getImageUrl(sequenceId: string): Promise<URL> {
+    const key = `images/${sequenceId}.png`;
+    return new URL(`${this.baseUrl}/${this.bucketName}/${key}`);
   }
 }
+
 
 export function getMediaStorage(): MediaStorage {
-  return new DatabaseMediaStorage();
+  return new S3MediaStorage();
+}
+
+function isValidUrl(urlString: string): boolean {
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }

@@ -89,14 +89,14 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
       const storage = getMediaStorage();
 
       // Save the audio file with retries and detailed logging
-      let audioData: string | undefined;
+      let audioUrl: URL | undefined;
       let retryCount = 0;
       const maxRetries = 3;
 
-      while (!audioData && retryCount < maxRetries) {
+      while (!audioUrl && retryCount < maxRetries) {
         try {
           console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Attempting to save audio (attempt ${retryCount + 1}/${maxRetries})`);
-          audioData = await storage.saveAudio(sequence.bookId, sequenceId, buffer);
+          audioUrl = await storage.saveAudio(sequence.bookId, sequenceId, buffer);
           console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Audio saved successfully`);
         } catch (error) {
           retryCount++;
@@ -113,7 +113,7 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
         }
       }
 
-      if (!audioData) {
+      if (!audioUrl) {
         throw new Error('Failed to save audio after all retries');
       }
 
@@ -134,7 +134,7 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
         })
       );
 
-      if (media?.imageData && media?.audioData) {
+      if (media?.audioUrl && media?.imageUrl) {
         console.log(`[Audio Worker ${sequenceNumber}/${totalSequences}] Sequence complete`);
         await withRetry(() => db.transaction(async (tx) => {
           await tx.update(sequences)
@@ -149,7 +149,7 @@ export const audioGenerationWorker = new Worker<AudioGenerationJob>(
         }));
       }
 
-      return { sequenceId, audioData };
+      return { sequenceId, audioUrl };
     } catch (error) {
       console.error(`[Audio Worker ${sequenceNumber}/${totalSequences}] Fatal error:`, {
         error: error instanceof Error ? error.message : 'Unknown error',

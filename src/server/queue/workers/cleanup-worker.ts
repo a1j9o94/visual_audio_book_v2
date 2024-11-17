@@ -40,7 +40,7 @@ export const cleanupWorker = new Worker<CleanupJob>(
               .where(
                 and(
                   inArray(sequenceMedia.sequenceId, failedSequenceIds),
-                  lt(sequenceMedia.generatedAt, oneDayAgo)
+                  lt(sequenceMedia.updatedAt, oneDayAgo)
                 )
               );
               

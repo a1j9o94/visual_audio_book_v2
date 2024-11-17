@@ -11,7 +11,8 @@ const config = {
             { hostname: "www.gutenberg.org" },
             { hostname: "covers.openlibrary.org" },
             { hostname: "utfs.io" },
-            { hostname: "api.uploadthing.com" },
+            { hostname: "localhost" },
+            { hostname: "railway.app" },
         ],
     },
 };

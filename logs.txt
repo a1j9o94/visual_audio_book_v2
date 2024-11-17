@@ -1,0 +1,293 @@
+(base) ➜  visual_audio_book_v2 git:(main) ✗ npm run worker:dev               
+
+> visual_audio_book_v2@0.1.0 worker:dev
+> tsx watch src/server/queue/worker.ts
+
+Storage initialized successfully S3MediaStorage {
+  bucketName: 'visual-audio-book',
+  baseUrl: 'http://localhost:9000'
+}
+Workers started and ready to process jobs
+(node:12534) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Starting book processing job: {
+  bookId: '477229bc-fda4-4001-b07a-7e8b37acd80a',
+  gutenbergId: '13',
+  numSequences: 10
+}
+Fetching book content from: https://www.gutenberg.org/cache/epub/13/pg13.txt
+Total words found: 8237
+Created 165 sequence records
+Processing 10 sequences
+[Sequence 1/10] Starting processing
+[Sequence 1/10] Successfully queued processing jobs
+[Audio Worker] Starting job for sequence b361e967-b363-4105-9ee1-10aacbef45f5: { sequenceNumber: 1, totalSequences: 10, textLength: 259 }
+Job 11 in sequence-processing completed
+[Sequence 2/10] Starting processing
+[Audio Worker 1/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 259, attempt: 1, maxAttempts: 3 }
+Completed processing for book 477229bc-fda4-4001-b07a-7e8b37acd80a
+Job 2 in book-processing completed
+[Sequence 2/10] Successfully queued processing jobs
+Job 12 in sequence-processing completed
+[Sequence 3/10] Starting processing
+[Sequence 3/10] Successfully queued processing jobs
+Job 13 in sequence-processing completed
+[Sequence 4/10] Starting processing
+[Sequence 4/10] Successfully queued processing jobs
+Job 14 in sequence-processing completed
+[Sequence 5/10] Starting processing
+[Sequence 5/10] Successfully queued processing jobs
+Job 15 in sequence-processing completed
+[Sequence 6/10] Starting processing
+[Sequence 6/10] Successfully queued processing jobs
+Job 16 in sequence-processing completed
+[Sequence 7/10] Starting processing
+[Sequence 7/10] Successfully queued processing jobs
+Job 17 in sequence-processing completed
+[Sequence 8/10] Starting processing
+[Sequence 8/10] Successfully queued processing jobs
+Job 18 in sequence-processing completed
+[Sequence 9/10] Starting processing
+[Sequence 9/10] Successfully queued processing jobs
+Job 19 in sequence-processing completed
+[Sequence 10/10] Starting processing
+[Sequence 10/10] Successfully queued processing jobs
+Job 20 in sequence-processing completed
+[Audio Worker 1/10] Speech generated, converting to buffer
+[Audio Worker 1/10] Buffer created, size: 324000
+[Audio Worker 1/10] Initializing storage
+[Audio Worker 1/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 1/10] Audio saved successfully
+[Audio Worker 1/10] Audio saved successfully
+[Audio Worker 1/10] Updating sequence status
+Job 11 in audio-generation completed
+[Audio Worker] Starting job for sequence 578a8475-6f3f-4977-a020-e8879a6bf53b: { sequenceNumber: 2, totalSequences: 10, textLength: 281 }
+[Audio Worker 2/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 281, attempt: 1, maxAttempts: 3 }
+[Audio Worker 2/10] Speech generated, converting to buffer
+Scene analysis result received
+[Image Worker] Starting job for sequence b361e967-b363-4105-9ee1-10aacbef45f5: { sequenceNumber: 1, totalSequences: 10, descriptionLength: 1089 }
+[Image Worker 1/10] Generating image from description
+[Image Generation] Attempting to generate image
+Job 11 in scene-analysis completed
+[Audio Worker 2/10] Buffer created, size: 352320
+[Audio Worker 2/10] Initializing storage
+[Audio Worker 2/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 2/10] Audio saved successfully
+[Audio Worker 2/10] Audio saved successfully
+[Audio Worker 2/10] Updating sequence status
+Job 12 in audio-generation completed
+[Audio Worker] Starting job for sequence 7a06cb5a-559e-42b0-8673-445ea0191b6a: { sequenceNumber: 3, totalSequences: 10, textLength: 287 }
+[Audio Worker 3/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 287, attempt: 1, maxAttempts: 3 }
+[Audio Worker 3/10] Speech generated, converting to buffer
+Scene analysis result received
+Job 12 in scene-analysis completed
+[Audio Worker 3/10] Buffer created, size: 403680
+[Audio Worker 3/10] Initializing storage
+[Audio Worker 3/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 3/10] Audio saved successfully
+[Audio Worker 3/10] Audio saved successfully
+[Audio Worker 3/10] Updating sequence status
+Job 13 in audio-generation completed
+[Audio Worker] Starting job for sequence 4079cc84-a706-473c-92eb-bc2b0f6241cc: { sequenceNumber: 4, totalSequences: 10, textLength: 266 }
+[Audio Worker 4/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 266, attempt: 1, maxAttempts: 3 }
+[Audio Worker 4/10] Speech generated, converting to buffer
+Scene analysis result received
+Job 13 in scene-analysis completed
+[Audio Worker 4/10] Buffer created, size: 337920
+[Audio Worker 4/10] Initializing storage
+[Audio Worker 4/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 4/10] Audio saved successfully
+[Audio Worker 4/10] Audio saved successfully
+[Audio Worker 4/10] Updating sequence status
+Job 14 in audio-generation completed
+[Audio Worker] Starting job for sequence 07b53449-ba5e-43ce-b878-e161ba7adc63: { sequenceNumber: 5, totalSequences: 10, textLength: 259 }
+[Audio Worker 5/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 259, attempt: 1, maxAttempts: 3 }
+[Audio Worker 5/10] Speech generated, converting to buffer
+[Audio Worker 5/10] Buffer created, size: 317760
+[Audio Worker 5/10] Initializing storage
+[Audio Worker 5/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 5/10] Audio saved successfully
+[Audio Worker 5/10] Audio saved successfully
+[Audio Worker 5/10] Updating sequence status
+Job 15 in audio-generation completed
+[Audio Worker] Starting job for sequence 30e48458-4199-4ed1-aa04-8be3b406f9c3: { sequenceNumber: 6, totalSequences: 10, textLength: 282 }
+[Audio Worker 6/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 282, attempt: 1, maxAttempts: 3 }
+[Audio Worker 6/10] Speech generated, converting to buffer
+Scene analysis result received
+Job 14 in scene-analysis completed
+[Image Generation] API response status: 200
+[Image Worker 1/10] Image generated, buffer size: 1764632
+[Image Worker 1/10] Initializing storage
+[Image Worker 1/10] Attempting to save image (attempt 1/3)
+[Image Worker 1/10] Image saved successfully
+[Image Worker 1/10] Successfully added image to database
+[Image Worker 1/10] Updating sequence status
+Job 11 in image-generation completed
+[Image Worker] Starting job for sequence 578a8475-6f3f-4977-a020-e8879a6bf53b: { sequenceNumber: 2, totalSequences: 10, descriptionLength: 691 }
+[Image Worker 2/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Audio Worker 6/10] Buffer created, size: 346080
+[Audio Worker 6/10] Initializing storage
+[Audio Worker 6/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 6/10] Audio saved successfully
+[Audio Worker 6/10] Audio saved successfully
+[Audio Worker 6/10] Updating sequence status
+Job 16 in audio-generation completed
+[Audio Worker] Starting job for sequence 2c2f2141-0521-4884-9625-927e79ae627d: { sequenceNumber: 7, totalSequences: 10, textLength: 286 }
+[Audio Worker 7/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 286, attempt: 1, maxAttempts: 3 }
+[Audio Worker 7/10] Speech generated, converting to buffer
+[Audio Worker 7/10] Buffer created, size: 362880
+[Audio Worker 7/10] Initializing storage
+[Audio Worker 7/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 7/10] Audio saved successfully
+[Audio Worker 7/10] Audio saved successfully
+[Audio Worker 7/10] Updating sequence status
+Job 17 in audio-generation completed
+[Audio Worker] Starting job for sequence c4266f04-ca39-46a0-88d3-eafe056d24a3: { sequenceNumber: 8, totalSequences: 10, textLength: 290 }
+[Audio Worker 8/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 290, attempt: 1, maxAttempts: 3 }
+Scene analysis result received
+Job 15 in scene-analysis completed
+[Audio Worker 8/10] Speech generated, converting to buffer
+[Audio Worker 8/10] Buffer created, size: 363360
+[Audio Worker 8/10] Initializing storage
+[Audio Worker 8/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 8/10] Audio saved successfully
+[Audio Worker 8/10] Audio saved successfully
+[Audio Worker 8/10] Updating sequence status
+Job 18 in audio-generation completed
+[Audio Worker] Starting job for sequence bb3d86f2-cecf-43f7-a408-a8c2d0fbda30: { sequenceNumber: 9, totalSequences: 10, textLength: 266 }
+[Audio Worker 9/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 266, attempt: 1, maxAttempts: 3 }
+[Audio Worker 9/10] Speech generated, converting to buffer
+Scene analysis result received
+Job 16 in scene-analysis completed
+[Audio Worker 9/10] Buffer created, size: 333600
+[Audio Worker 9/10] Initializing storage
+[Audio Worker 9/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 9/10] Audio saved successfully
+[Audio Worker 9/10] Audio saved successfully
+[Audio Worker 9/10] Updating sequence status
+Job 19 in audio-generation completed
+[Audio Worker] Starting job for sequence 61716f77-6602-4926-a80d-d3d4a95a5533: { sequenceNumber: 10, totalSequences: 10, textLength: 301 }
+[Audio Worker 10/10] Generating audio
+[Audio Generation] Creating speech for text: { textLength: 301, attempt: 1, maxAttempts: 3 }
+[Audio Worker 10/10] Speech generated, converting to buffer
+Scene analysis result received
+Job 17 in scene-analysis completed
+[Image Generation] API response status: 200
+[Image Worker 2/10] Image generated, buffer size: 2269380
+[Image Worker 2/10] Initializing storage
+[Image Worker 2/10] Attempting to save image (attempt 1/3)
+[Image Worker 2/10] Image saved successfully
+[Image Worker 2/10] Successfully added image to database
+[Image Worker 2/10] Updating sequence status
+Job 12 in image-generation completed
+[Image Worker] Starting job for sequence 7a06cb5a-559e-42b0-8673-445ea0191b6a: { sequenceNumber: 3, totalSequences: 10, descriptionLength: 833 }
+[Image Worker 3/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Audio Worker 10/10] Buffer created, size: 363360
+[Audio Worker 10/10] Initializing storage
+[Audio Worker 10/10] Attempting to save audio (attempt 1/3)
+[Audio Worker 10/10] Audio saved successfully
+[Audio Worker 10/10] Audio saved successfully
+[Audio Worker 10/10] Updating sequence status
+Job 20 in audio-generation completed
+Scene analysis result received
+Job 18 in scene-analysis completed
+Scene analysis result received
+Job 19 in scene-analysis completed
+Scene analysis result received
+Job 20 in scene-analysis completed
+[Image Generation] API response status: 200
+[Image Worker 3/10] Image generated, buffer size: 2122383
+[Image Worker 3/10] Initializing storage
+[Image Worker 3/10] Attempting to save image (attempt 1/3)
+[Image Worker 3/10] Image saved successfully
+[Image Worker 3/10] Successfully added image to database
+[Image Worker 3/10] Updating sequence status
+Job 13 in image-generation completed
+[Image Worker] Starting job for sequence 4079cc84-a706-473c-92eb-bc2b0f6241cc: { sequenceNumber: 4, totalSequences: 10, descriptionLength: 1129 }
+[Image Worker 4/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Image Generation] API response status: 200
+[Image Worker 4/10] Image generated, buffer size: 1805255
+[Image Worker 4/10] Initializing storage
+[Image Worker 4/10] Attempting to save image (attempt 1/3)
+[Image Worker 4/10] Image saved successfully
+[Image Worker 4/10] Successfully added image to database
+[Image Worker 4/10] Updating sequence status
+Job 14 in image-generation completed
+[Image Worker] Starting job for sequence 07b53449-ba5e-43ce-b878-e161ba7adc63: { sequenceNumber: 5, totalSequences: 10, descriptionLength: 860 }
+[Image Worker 5/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Image Generation] API response status: 200
+[Image Worker 5/10] Image generated, buffer size: 1503331
+[Image Worker 5/10] Initializing storage
+[Image Worker 5/10] Attempting to save image (attempt 1/3)
+[Image Worker 5/10] Image saved successfully
+[Image Worker 5/10] Successfully added image to database
+[Image Worker 5/10] Updating sequence status
+Job 15 in image-generation completed
+[Image Worker] Starting job for sequence 30e48458-4199-4ed1-aa04-8be3b406f9c3: { sequenceNumber: 6, totalSequences: 10, descriptionLength: 1139 }
+[Image Worker 6/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Image Generation] API response status: 200
+[Image Worker 6/10] Image generated, buffer size: 1308653
+[Image Worker 6/10] Initializing storage
+[Image Worker 6/10] Attempting to save image (attempt 1/3)
+[Image Worker 6/10] Image saved successfully
+[Image Worker 6/10] Successfully added image to database
+[Image Worker 6/10] Updating sequence status
+Job 16 in image-generation completed
+[Image Worker] Starting job for sequence 2c2f2141-0521-4884-9625-927e79ae627d: { sequenceNumber: 7, totalSequences: 10, descriptionLength: 652 }
+[Image Worker 7/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Image Generation] API response status: 200
+[Image Worker 7/10] Image generated, buffer size: 1858457
+[Image Worker 7/10] Initializing storage
+[Image Worker 7/10] Attempting to save image (attempt 1/3)
+[Image Worker 7/10] Image saved successfully
+[Image Worker 7/10] Successfully added image to database
+[Image Worker 7/10] Updating sequence status
+Job 17 in image-generation completed
+[Image Worker] Starting job for sequence c4266f04-ca39-46a0-88d3-eafe056d24a3: { sequenceNumber: 8, totalSequences: 10, descriptionLength: 809 }
+[Image Worker 8/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Image Generation] API response status: 200
+[Image Worker 8/10] Image generated, buffer size: 1716588
+[Image Worker 8/10] Initializing storage
+[Image Worker 8/10] Attempting to save image (attempt 1/3)
+[Image Worker 8/10] Image saved successfully
+[Image Worker 8/10] Successfully added image to database
+[Image Worker 8/10] Updating sequence status
+Job 18 in image-generation completed
+[Image Worker] Starting job for sequence bb3d86f2-cecf-43f7-a408-a8c2d0fbda30: { sequenceNumber: 9, totalSequences: 10, descriptionLength: 764 }
+[Image Worker 9/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Image Generation] API response status: 200
+[Image Worker 9/10] Image generated, buffer size: 1917432
+[Image Worker 9/10] Initializing storage
+[Image Worker 9/10] Attempting to save image (attempt 1/3)
+[Image Worker 9/10] Image saved successfully
+[Image Worker 9/10] Successfully added image to database
+[Image Worker 9/10] Updating sequence status
+Job 19 in image-generation completed
+[Image Worker] Starting job for sequence 61716f77-6602-4926-a80d-d3d4a95a5533: { sequenceNumber: 10, totalSequences: 10, descriptionLength: 594 }
+[Image Worker 10/10] Generating image from description
+[Image Generation] Attempting to generate image
+[Image Generation] API response status: 200
+[Image Worker 10/10] Image generated, buffer size: 1997578
+[Image Worker 10/10] Initializing storage
+[Image Worker 10/10] Attempting to save image (attempt 1/3)
+[Image Worker 10/10] Image saved successfully
+[Image Worker 10/10] Successfully added image to database
+[Image Worker 10/10] Updating sequence status
+Job 20 in image-generation completed

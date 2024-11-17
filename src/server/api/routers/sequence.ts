@@ -7,21 +7,9 @@ import { TRPCError } from "@trpc/server";
 import { addJob } from "~/server/queue/queues";
 import { books } from "~/server/db/schema";
 
-// Helper function to create data URLs
-function createMediaUrls(media: typeof sequenceMedia.$inferSelect | null) {
-  if (!media) return null;
-  
-  return {
-    ...media,
-    audioUrl: media.audioData ? `data:audio/mpeg;base64,${media.audioData}` : null,
-    imageUrl: media.imageData ? `data:image/png;base64,${media.imageData}` : null,
-  };
-}
-
-type MediaWithUrls = ReturnType<typeof createMediaUrls>;
 
 type SequenceWithMedia = typeof sequences.$inferSelect & {
-  media: MediaWithUrls;
+  media: typeof sequenceMedia.$inferSelect;
   metadata: typeof sequenceMetadata.$inferSelect | null;
   characters: {
     character: {
@@ -80,7 +68,7 @@ export const sequenceRouter = createTRPCRouter({
           });
         }
 
-        return createMediaUrls(media);
+        return media;
       } catch (error) {
         console.error('Error fetching sequence media:', error);
         throw new TRPCError({
@@ -113,11 +101,7 @@ export const sequenceRouter = createTRPCRouter({
         });
       }
 
-      // Transform the sequence with computed URLs
-      return {
-        ...sequence,
-        media: createMediaUrls(sequence.media),
-      } as SequenceWithMedia;
+      return sequence as SequenceWithMedia;
     }),
 
   updateProgress: protectedProcedure
@@ -217,10 +201,7 @@ export const sequenceRouter = createTRPCRouter({
       }
 
       // Transform the sequence with computed URLs
-      return {
-        ...sequence,
-        media: createMediaUrls(sequence.media),
-      } as SequenceWithMedia;
+      return sequence as SequenceWithMedia;
     }),
 
   getCompletedCount: publicProcedure
