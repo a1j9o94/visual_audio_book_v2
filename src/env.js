@@ -18,6 +18,8 @@ export const env = createEnv({
     AUTH_GOOGLE_ID: z.string(),
     AUTH_GOOGLE_SECRET: z.string(),
     MINIO_ENDPOINT: z.string().url(),
+    MINIO_ACCESS_ID: z.string(),
+    MINIO_PASSWORD: z.string(),
   },
 
   client: {
@@ -38,6 +40,8 @@ export const env = createEnv({
     STABILITY_AI_API_URL: process.env.STABILITY_AI_API_URL,
     NODE_ENV: process.env.NODE_ENV,
     MINIO_ENDPOINT: process.env.MINIO_ENDPOINT,
+    MINIO_ACCESS_ID: process.env.MINIO_ACCESS_ID,
+    MINIO_PASSWORD: process.env.MINIO_PASSWORD,
   },
 
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
