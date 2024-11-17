@@ -5,7 +5,7 @@ import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { ExternalLink, Library } from "lucide-react";
-
+import Image from "next/image";
 export interface GutenbergBook {
   id: string;
   title: string;
@@ -55,8 +55,23 @@ export function GutenbergBook({ book, className = "", showDetails = true }: Gute
     } ${className}`}>
       {showDetails && (
         <>
-          <h2 className="text-2xl font-bold text-white/90">{book.title}</h2>
-          <p className="mt-2 text-white/70">by {book.author}</p>
+          <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg">
+            <Image
+              src={`https://www.gutenberg.org/cache/epub/${book.gutenbergId}/pg${book.gutenbergId}.cover.medium.jpg`}
+              alt={book.title}
+              fill
+              priority
+              className="object-cover"
+              sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
+            />
+          </div>
+          <h3 className="mt-4 text-lg font-bold text-white/90">{book.title}</h3>
+          <p className="text-sm text-gray-300">by {book.author}</p>
+          {book.firstPublishYear && (
+            <p className="text-xs text-gray-400">
+              First published: {book.firstPublishYear}
+            </p>
+          )}
         </>
       )}
       <div className={`${showDetails ? "mt-4" : ""} flex flex-col gap-3 sm:flex-row sm:gap-4`}>

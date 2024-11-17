@@ -31,18 +31,19 @@ export function BookList({ books, isSearchResults }: BookListProps) {
 
   const BookContent = ({ book }: { book: Book }) => (
     <>
-      {(book.coverId ?? book.coverImageUrl) && (
+      {(book.coverImageUrl ?? book.gutenbergId) && (
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg">
           <Image
-            src={book.coverImageUrl ?? `https://covers.openlibrary.org/b/id/${book.coverId}-L.jpg`}
+            src={book.coverImageUrl ?? `https://www.gutenberg.org/cache/epub/${book.gutenbergId}/${book.gutenbergId}-cover.png`}
             alt={book.title}
             fill
+            priority
             className="object-cover"
             sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
           />
         </div>
       )}
-      <h3 className="text-lg font-bold">{book.title}</h3>
+      <h3 className="mt-4 text-lg font-bold text-white/90">{book.title}</h3>
       <p className="text-sm text-gray-300">by {book.author}</p>
       {book.firstPublishYear && (
         <p className="text-xs text-gray-400">
