@@ -13,6 +13,7 @@ const config = {
             { hostname: "utfs.io" },
             { hostname: "localhost" },
             { hostname: "railway.app" },
+            { hostname: "bucket-production-a14d.up.railway.app" },
         ],
     },
 };
